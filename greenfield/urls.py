@@ -25,5 +25,7 @@ from django.conf.urls.static import static
 urlpatterns = [
     path("admin/", admin.site.urls),
     path('menu/', include('menu.urls')),
+    path('batters/stats/', include('batters.urls')),
+    path('batters/ratings', include('batters.urls')),
     path('', RedirectView.as_view(url='menu/', permanent=True))
 ] + static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
