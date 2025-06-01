@@ -1,0 +1,24 @@
+{% load my_filters %}
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Player Results</title>
+</head>
+<body>
+    <h1>Players Found</h1>
+    <ul>
+        {% for player in players %}
+        <li>
+          <a href="{% url 'players:view_player' player.playerid %}">
+            {{ player.namefirst }} {{ player.namelast }}
+          </a>
+          {% if status_lookup|get_item:player.playerid %}
+            - <em>{{ status_lookup|get_item:player.playerid }}</em>
+          {% endif %}
+        </li>
+        {% endfor %}
+    </ul>
+    <a href="{% url 'players:create_players_from_team' %}">Search again</a>
+</body>
+</html>

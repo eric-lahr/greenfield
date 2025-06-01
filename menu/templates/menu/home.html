@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Main Menu</title>
+</head>
+<body>
+    <h1>Main Menu</h1>
+
+    <h2>Players</h2>
+    <ul>
+        <li><a href="{% url 'players:create_players_from_team' %}">Create Players from Team</a></li>
+        <li><a href="{% url 'players:create_career_player' %}">Create Career Player</a></li>
+        <li><a href="{% url 'players:edit' %}">Edit Players</a></li>
+    </ul>
+
+    <h2>Teams</h2>
+    <ul>
+        <li><a href="{% url 'create' %}">Create Team</a></li>
+        <li><a href="{% url 'view_team' %}">View Team</a></li>
+        <li><a href="{% url 'edit' %}">Edit Team</a></li>
+    </ul>
+
+    <!-- Future sections for Stadiums, Games, and Stats -->
+    <h2>Coming Soon</h2>
+    <ul>
+        <li>Stadiums</li>
+        <li>Games</li>
+        <li>Stats</li>
+    </ul>
+</body>
+</html>
