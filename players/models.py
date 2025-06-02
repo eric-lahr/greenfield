@@ -13,7 +13,10 @@ class Players(models.Model):
     uni_num = models.IntegerField(null=True, blank=True)
     defense = models.CharField(default='84')
     offense = models.CharField(null=True, blank=True)
+    bat_prob_hit = models.IntegerField(null=True, blank=True)
     pitching = models.CharField(null=True, blank=True)
+    pitch_ctl = models.IntegerField(null=True, blank=True)
+    pitch_prob_hit = models.IntegerField(null=True, blank=True)
     team_serial = models.ForeignKey('teams.Teams', on_delete=models.SET_NULL, null=True, blank=True)
 
 class PlayerPicture(models.Model):

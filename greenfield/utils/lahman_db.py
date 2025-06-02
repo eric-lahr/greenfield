@@ -62,7 +62,70 @@ def get_rated_player_status(year, team_name, lahman_players):
         status_lookup[player['playerid']] = 'rated' if is_rated else ''
     return status_lookup
 
+def get_player_season_stats(player_id, year):
+    stats = {
+        'batting': defaultdict(int),
+        'pitching': defaultdict(int),
+        'fielding': defaultdict(lambda: defaultdict(int)),  # stats per position
+    }
 
+    with get_lahman_connection() as conn:
+        with conn.cursor() as cur:
+            # --- Batting ---
+            cur.execute("""
+                SELECT 
+                    COALESCE(SUM(AB), 0), COALESCE(SUM(H), 0), COALESCE(SUM(HR), 0),
+                    COALESCE(SUM("3B"), 0), COALESCE(SUM(BB), 0), COALESCE(SUM(HBP), 0),
+                    COALESCE(SUM(SB), 0), COALESCE(SUM("2B"), 0), COALESCE(SUM(RBI), 0), 
+                    COALESCE(SUM(SO), 0)
+                FROM Batting
+                WHERE playerID = %s AND yearID = %s
+            """, (player_id, year))
+            row = cur.fetchone()
+            (
+                stats['batting']['AB'], stats['batting']['H'], stats['batting']['HR'],
+                stats['batting']['3B'], stats['batting']['BB'], stats['batting']['HBP'],
+                stats['batting']['SB'], stats['batting']['2B'], stats['batting']['RBI'],
+                stats['batting']['SO']
+            ) = row
+
+            # --- Pitching ---
+            cur.execute("""
+                SELECT 
+                    COALESCE(SUM(BFP), 0), COALESCE(SUM(H), 0), COALESCE(SUM(BB), 0),
+                    COALESCE(SUM(HBP), 0), COALESCE(SUM(BAOpp), 0), COALESCE(SUM(G), 0),
+                    COALESCE(SUM(IPouts), 0), COALESCE(SUM(SO), 0), COALESCE(SUM(HR), 0)
+                FROM Pitching
+                WHERE playerID = %s AND yearID = %s
+            """, (player_id, year))
+            row = cur.fetchone()
+            (
+                stats['pitching']['BFP'], stats['pitching']['H'], stats['pitching']['BB'],
+                stats['pitching']['HBP'], stats['pitching']['BAOpp'], stats['pitching']['G'],
+                stats['pitching']['IPouts'], stats['pitching']['SO'], stats['pitching']['HR']
+            ) = row
+
+            # --- Fielding ---
+            cur.execute("""
+                SELECT POS, SUM(G) as games, 
+                       COALESCE(SUM(PO), 0), COALESCE(SUM(A), 0), COALESCE(SUM(E), 0),
+                       COALESCE(SUM(SB), 0), COALESCE(SUM(CS), 0)
+                FROM Fielding
+                WHERE playerID = %s AND yearID = %s
+                GROUP BY POS
+            """, (player_id, year))
+            for pos, games, po, a, e, sb, cs in cur.fetchall():
+                if games >= 15:
+                    stats['fielding'][pos] = {
+                        'PO': po,
+                        'A': a,
+                        'E': e,
+                        'SB': sb,
+                        'CS': cs,
+                        'Games': games,
+                    }
+
+    return stats
 
 # You can add more queries here later...
 # def get_team_stats(year, team_id): ...

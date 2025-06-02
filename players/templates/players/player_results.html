@@ -7,10 +7,11 @@
 </head>
 <body>
     <h1>Players Found</h1>
+    <h2>{{ year }} {{ team_name }}</h2>
     <ul>
         {% for player in players %}
         <li>
-          <a href="{% url 'players:view_player' player.playerid %}">
+          <a href="{% url 'players:rate_player' player.playerid year team_name %}?namefirst={{ player.namefirst|urlencode }}&namelast={{ player.namelast|urlencode }}">
             {{ player.namefirst }} {{ player.namelast }}
           </a>
           {% if status_lookup|get_item:player.playerid %}

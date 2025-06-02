@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Rate Player</title>
+</head>
+<body>
+    <h1>Player Stats</h1>
+    <p><strong>Player ID:</strong> {{ name_first }} {{ name_last }}</p>
+    <p><strong>Year:</strong> {{ year }}</p>
+    <p><strong>Team:</strong> {{ team_name }}</p>
+
+    <h2>Batting Stats</h2>
+    <ul>
+        <li>H: {{ batting.0|default:0 }}</li>
+        <li>AB: {{ batting.1|default:0 }}</li>
+        <li>HR: {{ batting.2|default:0 }}</li>
+        <li>3B: {{ batting.3|default:0 }}</li>
+        <li>BB: {{ batting.4|default:0 }}</li>
+        <li>HBP: {{ batting.5|default:0 }}</li>
+        <li>SB: {{ batting.6|default:0 }}</li>
+        <li>2B: {{ batting.7|default:0 }}</li>
+        <li>RBI: {{ batting.8|default:0 }}</li>
+        <li>SO: {{ batting.9|default:0 }}</li>
+    </ul>
+
+    <h2>Pitching Stats</h2>
+    <ul>
+        <li>BFP: {{ pitching.0|default:0 }}</li>
+        <li>H: {{ pitching.1|default:0 }}</li>
+        <li>BB: {{ pitching.2|default:0 }}</li>
+        <li>HBP: {{ pitching.3|default:0 }}</li>
+        <li>BAOpp: {{ pitching.4|default:0 }}</li>
+        <li>G: {{ pitching.5|default:0 }}</li>
+        <li>IPouts: {{ pitching.6|default:0 }}</li>
+        <li>SO: {{ pitching.7|default:0 }}</li>
+        <li>HR: {{ pitching.8|default:0 }}</li>
+    </ul>
+
+    <h2>Fielding Stats</h2>
+    {% if fielding %}
+        <ul>
+        {% for row in fielding %}
+            <li>
+                Position: {{ row.0 }} – PO: {{ row.1|default:0 }}, A: {{ row.2|default:0 }}, E: {{ row.3|default:0 }}
+            </li>
+        {% endfor %}
+        </ul>
+    {% else %}
+        <p>No fielding records with 15+ games.</p>
+    {% endif %}
+
+    <h3>Catcher Stats (Fielding)</h3>
+    <ul>
+        <li>SB Allowed: {{ sb }}</li>
+        <li>CS: {{ cs }}</li>
+    </ul>
+</body>
+</html>
