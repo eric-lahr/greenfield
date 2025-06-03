@@ -94,7 +94,8 @@ def rate_player(request, playerID, year, team_name):
             cursor.execute("""
                 SELECT
                     SUM(H), SUM(AB), SUM(HR), SUM("3B"), SUM(BB), SUM(HBP),
-                    SUM(SB), SUM("2B"), SUM(RBI), SUM(SO), SUM(G)
+                    SUM(SB), SUM("2B"), SUM(RBI), SUM(SO), SUM(G), SUM(SF),
+                    SUM(SH)
                 FROM Batting
                 WHERE playerID = %s AND yearID = %s
             """, (playerID, year))
@@ -143,10 +144,14 @@ def rate_player(request, playerID, year, team_name):
         'RBI': batting[8],
         'SO': batting[9],
         'bats': bats,
-        'SB': batting[6]
+        'SB': batting[6],
+        'SF': batting[11],
+        'SH': batting[12]
     }
 
-    pa = batting_stats['AB'] + batting_stats['BB'] + batting_stats['HBP']
+    if batting_stats['SH'] == None: batting_stats['SH'] = 0
+    if batting_stats['SF'] == None: batting_stats['SF'] = 0
+    pa = batting_stats['AB'] + batting_stats['BB'] + batting_stats['HBP'] + batting_stats['SF'] + batting_stats['SH']
     batting_stats['PA'] = pa
 
     pitching_stats = {
@@ -177,7 +182,10 @@ def rate_player(request, playerID, year, team_name):
         bat_clutch = clutch(batting_stats['RBI'], batting_stats['G'])
         bat_letter = hit_letter(batting_stats['H'], batting_stats['AB'])
         hr_num = hr_3b_number(batting_stats['HR'], batting_stats['3B'], batting_stats['H'])
-        spd_rate = speed(batting_stats['SB'], batting_stats['PA'])
+        spd_rate = speed(
+            batting_stats['SB'], batting_stats['H'], batting_stats['BB'], batting_stats['HBP'],
+            batting_stats['2B'], batting_stats['3B'], batting_stats['HR']
+            )
         walk_so = batter_bb_k(batting_stats['BB'], batting_stats['SO'], batting_stats['HBP'], batting_stats['PA'])
         prob_hit_num = probable_hit_number(batting_stats['H'], batting_stats['PA'])
 
@@ -188,7 +196,7 @@ def rate_player(request, playerID, year, team_name):
 
     # get sherco ratings - pitching
     if pitching_stats['BF'] != None:
-        gopher = gopher(pitching_stats['HR'], pitching_stats['H'])
+        gopher_ball = gopher(pitching_stats['HRA'], pitching_stats['HA'])
         pitch_grade = pitch_letter(pitching_stats['BAOpp'])
         inn_of_eff = innings_of_effectiveness(pitching_stats['G'], pitching_stats['IP'])
         walk_so = pitcher_bb_k_hbp(
@@ -200,8 +208,8 @@ def rate_player(request, playerID, year, team_name):
             pitching_stats['BB'], pitching_stats['HBP'],
             pitching_stats['HA'], pitching_stats['BF']
             )
-        pitch_string = gopher + pitch_grade + inn_of_eff + ' ' + walk_so + ' ' + wld_pch
-        pitch_ph = probable_hit_num(pitching_stats['H'], pitching_stats['BF'], pitching_stats['PA'])
+        pitch_string = gopher_ball + pitch_grade + inn_of_eff + ' ' + walk_so + ' ' + wld_pch
+        pitch_ph = probable_hit_number(pitching_stats['HA'], pitching_stats['BF'])
     else: pitch_string, pcn, pitch_ph = '', '', ''
     greenfield_dict['pitching'] = pitch_string
     greenfield_dict['pitch_ctl'] = pcn
@@ -230,11 +238,9 @@ def rate_player(request, playerID, year, team_name):
             fielding_stats['CS'], fielding_stats['SBA']
         )
 
-        #position_dict[fielding['POS']] = dr
-        print(dr)
+        position_dict[position[0]] = dr
 
     greenfield_dict['positions'] = position_dict
-    print(greenfield_dict)
 
     context = {
         'playerID': playerID,
@@ -247,6 +253,8 @@ def rate_player(request, playerID, year, team_name):
         'cs': sb_cs[1] or 0,
         'name_first': name_first,
         'name_last': name_last,
+        'greenfield': greenfield_dict,
+        'pa': pa
     }
     return render(request, 'players/rate_player.html', context)
 

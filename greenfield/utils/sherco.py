@@ -36,24 +36,30 @@ def hit_letter(h, ab):
     return letter
 
 def hr_3b_number(hr, trip, h):
-    hr_check = round((hr / h) * 36) - 1
-    hr_num = sorted(numbers)[hr_check]
+    hr_trp_score = ''
+    if hr > 0 and h > 0:
+        hr_check = (hr / h) * 36
+        hr_check = round(hr_check) - 1
+        if hr_check <= 0: hr_num = ''
+        else: hr_num = sorted(numbers)[hr_check]
+        hr_trp_score += str(hr_num)
     
-    trip_check = round((trip / h) * 36)
-    if trip_check >= 1:
-        trip_num = sorted(numbers)[hr_check + trip_check]
-    else:
-        trip_num = ''
+    if trip > 0 and h > 0:
+        trip_check = round((trip / h) * 36)
+        if trip_check >= 1:
+            trip_num = sorted(numbers)[hr_check + trip_check]
+            hr_trp_score += '(' + str(trip_num) + ')'
 
-    return trip_num
+    return hr_trp_score
 
-def speed(sb, pa):
-    speed_check = round(sb / pa, 1)
+def speed(sb, h, bb, hbp, double, triple, hr):
+    speed_check = round(sb / ((h + bb + hbp) - (double + triple + hr)), 3)
+    print('speed: ',speed_check)
 
-    if speed_check >= 30.1: spd_rate = '****'
-    elif speed_check >= 20.1: spd_rate = '***'
-    elif speed_check >= 10.1: spd_rate = '**'
-    elif speed_check >= 7.6: spd_rate = '*'
+    if speed_check >= .301: spd_rate = '****'
+    elif speed_check >= .201: spd_rate = '***'
+    elif speed_check >= .101: spd_rate = '**'
+    elif speed_check >= .076: spd_rate = '*'
     else: spd_rate = ''
 
     return spd_rate
@@ -63,14 +69,14 @@ def batter_bb_k(bb, so, hbp, pa):
     walk_num = sorted(numbers)[walk_check]
     k_check = round((so / pa) * 36)
     k_num = sorted(numbers)[walk_check + k_check]
-    hbp_check = round((hbp / pa) * 36)
+    hbp_check = math.ceil((hbp / pa) * 36)
 
     if hbp_check:
         hbp_num = sorted(numbers)[walk_check + k_check + hbp_check]
         hbp_str = '/' + str(hbp_num)
     else: hbp_str = ''
 
-    bb_k_string = '[' + str(walk_num) + '-' +str(k_check) + hbp_str + ']'
+    bb_k_string = '[' + str(walk_num) + '-' +str(k_num) + hbp_str + ']'
 
     return bb_k_string
 
@@ -117,10 +123,21 @@ def pitcher_bb_k_hbp(bf, bb, so, hbp):
     return bb_string + k_str + hp_str
 
 def pitcher_bb_k_hbp(bf, bb, so, hbp):
-    if wp >= 5: wp = '[WP]'
-    else: wp = ''
+    bb_check = math.ceil((bb / bf) * 36)
+    bb_num = sorted(numbers)[bb_check]
+    kbbwp_string = ' (' + str(bb_num)+'-'
 
-    return wp
+    k_check = round((so / bf) * 36)
+    k_num = sorted(numbers)[bb_check + k_check]
+    kbbwp_string += str(k_num)
+
+    hp_check = math.ceil((hbp / bf) * 36)
+    hp_num = sorted(numbers)[bb_check + k_check + hp_check]
+    if hp_num == k_num: kbbwp_string += ') '
+    else: kbbwp_string += '/' + str(hp_num) + ') '
+    if hbp > 5: kbbwp_string += '[WP] '
+
+    return kbbwp_string
 
 def gopher(hr, h):
     go_check = round(hr / h, 3)
@@ -132,6 +149,8 @@ def gopher(hr, h):
 def wild_pitch(wp):
     if wp >= 5: wp_str = '[WP]'
     else: wp_str = ''
+
+    return wp_str
 
 def pitcher_control_number(walks, hb, hits_allowed, bf):
     br_check = round(((walks + hits_allowed + hb) / bf) * 36)

@@ -2,57 +2,96 @@
 <html>
 <head>
     <title>Rate Player</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.3.1/dist/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
+    <style>
+        hr.thick {
+            height: 5px;
+            background-color: black;
+            border: none;
+        }
+    </style>
 </head>
 <body>
-    <h1>Player Stats</h1>
-    <p><strong>Player ID:</strong> {{ name_first }} {{ name_last }}</p>
-    <p><strong>Year:</strong> {{ year }}</p>
-    <p><strong>Team:</strong> {{ team_name }}</p>
+    <div class="jumbotron text-center">
+        <h1><strong> {{ name_first }} {{ name_last }}</h1>
+        <p>{{ year }} {{ team_name }}</p>
+    </div>
+    <div class="container">
+        <div class="row">
+            <div class="col-sm-4">
+                <h2>Batting Stats</h2>
+                <ul>
+                    <li>G: {{ batting.10|default:0 }}</li>
+                    <li>PA: {{ pa }}</li>
+                    <li>H: {{ batting.0|default:0 }}</li>
+                    <li>AB: {{ batting.1|default:0 }}</li>
+                    <li>HR: {{ batting.2|default:0 }}</li>
+                    <li>3B: {{ batting.3|default:0 }}</li>
+                    <li>BB: {{ batting.4|default:0 }}</li>
+                    <li>HBP: {{ batting.5|default:0 }}</li>
+                    <li>SB: {{ batting.6|default:0 }}</li>
+                    <li>2B: {{ batting.7|default:0 }}</li>
+                    <li>RBI: {{ batting.8|default:0 }}</li>
+                    <li>SO: {{ batting.9|default:0 }}</li>
+                </ul>
+            </div>
+            <div class="col-sm-4">
+                <h2>Pitching Stats</h2>
+                <ul>
+                    <li>BFP: {{ pitching.0|default:0 }}</li>
+                    <li>H: {{ pitching.1|default:0 }}</li>
+                    <li>BB: {{ pitching.2|default:0 }}</li>
+                    <li>HBP: {{ pitching.3|default:0 }}</li>
+                    <li>BAOpp: {{ pitching.4|default:0 }}</li>
+                    <li>G: {{ pitching.5|default:0 }}</li>
+                    <li>IPouts: {{ pitching.6|default:0 }}</li>
+                    <li>SO: {{ pitching.7|default:0 }}</li>
+                    <li>HR: {{ pitching.8|default:0 }}</li>
+                </ul>
+            </div>
+            <div class="col-sm-4">
+                <h2>Fielding Stats</h2>
+                {% if fielding %}
+                    <ul>
+                    {% for row in fielding %}
+                        <li>
+                            Position: {{ row.0 }} – G: {{ row.4|default:0 }} PO: {{ row.1|default:0 }}, A: {{ row.2|default:0 }}, E: {{ row.3|default:0 }}
+                        </li>
+                    {% endfor %}
+                    </ul>
+                {% else %}
+                    <p>No fielding records with 15+ games.</p>
+                {% endif %}
 
-    <h2>Batting Stats</h2>
-    <ul>
-        <li>H: {{ batting.0|default:0 }}</li>
-        <li>AB: {{ batting.1|default:0 }}</li>
-        <li>HR: {{ batting.2|default:0 }}</li>
-        <li>3B: {{ batting.3|default:0 }}</li>
-        <li>BB: {{ batting.4|default:0 }}</li>
-        <li>HBP: {{ batting.5|default:0 }}</li>
-        <li>SB: {{ batting.6|default:0 }}</li>
-        <li>2B: {{ batting.7|default:0 }}</li>
-        <li>RBI: {{ batting.8|default:0 }}</li>
-        <li>SO: {{ batting.9|default:0 }}</li>
-    </ul>
-
-    <h2>Pitching Stats</h2>
-    <ul>
-        <li>BFP: {{ pitching.0|default:0 }}</li>
-        <li>H: {{ pitching.1|default:0 }}</li>
-        <li>BB: {{ pitching.2|default:0 }}</li>
-        <li>HBP: {{ pitching.3|default:0 }}</li>
-        <li>BAOpp: {{ pitching.4|default:0 }}</li>
-        <li>G: {{ pitching.5|default:0 }}</li>
-        <li>IPouts: {{ pitching.6|default:0 }}</li>
-        <li>SO: {{ pitching.7|default:0 }}</li>
-        <li>HR: {{ pitching.8|default:0 }}</li>
-    </ul>
-
-    <h2>Fielding Stats</h2>
-    {% if fielding %}
-        <ul>
-        {% for row in fielding %}
-            <li>
-                Position: {{ row.0 }} – PO: {{ row.1|default:0 }}, A: {{ row.2|default:0 }}, E: {{ row.3|default:0 }}
-            </li>
-        {% endfor %}
-        </ul>
-    {% else %}
-        <p>No fielding records with 15+ games.</p>
-    {% endif %}
-
-    <h3>Catcher Stats (Fielding)</h3>
-    <ul>
-        <li>SB Allowed: {{ sb }}</li>
-        <li>CS: {{ cs }}</li>
-    </ul>
+                <h3>Catcher Stats (Fielding)</h3>
+                <ul>
+                    <li>SB Allowed: {{ sb }}</li>
+                    <li>CS: {{ cs }}</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    <hr class="thick">
+    <div class="container">
+        <div class="row">
+            <div class="col-sm-4">
+                <h3>Sherco Offensive Ratings</h3>
+                <p> {{ greenfield.offense }} ph-{{ greenfield.bat_prob_hit }}</p>
+            </div>
+            <div class="col-sm-4">
+                <h3>Sherco Pitching Ratings</h3>
+                <p> {{ greenfield.pitching}} pcn-{{ greenfield.pitch_ctl }} pph-{{ greenfield.pitch_prob_hit }}  </p>
+            </div>
+            <div class="col-sm-4">
+                <h3>Sherco Defensive Ratings</h3>
+                {% for key, value in greenfield.positions.items %}
+                    <p>{{ key }} {{ value }}</p>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js" integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/popper.js@1.14.7/dist/umd/popper.min.js" integrity="sha384-UO2eT0CpHqdSJQ6hJty5KVphtPhzWj9WO1clHTMGa3JDZwrnQq4sF86dIHNDz0W1" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.3.1/dist/js/bootstrap.min.js" integrity="sha384-JjSmVgyd0p3pXB1rRibZUAYoIIy6OrQ6VrjIEaFf/nJGzIxFDsf4x0xIM+B07jRM" crossorigin="anonymous"></script>
 </body>
 </html>
