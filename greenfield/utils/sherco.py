@@ -121,22 +121,22 @@ def pitcher_bb_k_hbp(bf, bb, so, hbp):
 
     return bb_string + k_str + hp_str
 
-def pitcher_bb_k_hbp(bf, bb, so, hbp):
-    bb_check = math.ceil((bb / bf) * 36)
-    bb_num = sorted(numbers)[bb_check]
-    kbbwp_string = ' (' + str(bb_num)+'-'
+# def pitcher_bb_k_hbp(bf, bb, so, hbp):
+#     bb_check = math.ceil((bb / bf) * 36)
+#     bb_num = sorted(numbers)[bb_check]
+#     kbbwp_string = ' (' + str(bb_num)+'-'
 
-    k_check = round((so / bf) * 36)
-    k_num = sorted(numbers)[bb_check + k_check]
-    kbbwp_string += str(k_num)
+#     k_check = round((so / bf) * 36)
+#     k_num = sorted(numbers)[bb_check + k_check]
+#     kbbwp_string += str(k_num)
 
-    hp_check = math.ceil((hbp / bf) * 36)
-    hp_num = sorted(numbers)[bb_check + k_check + hp_check]
-    if hp_num == k_num: kbbwp_string += ') '
-    else: kbbwp_string += '/' + str(hp_num) + ') '
-    if hbp > 5: kbbwp_string += '[WP] '
+#     hp_check = math.ceil((hbp / bf) * 36)
+#     hp_num = sorted(numbers)[bb_check + k_check + hp_check]
+#     if hp_num == k_num: kbbwp_string += ') '
+#     else: kbbwp_string += '/' + str(hp_num) + ') '
+#     if hbp > 5: kbbwp_string += '[WP] '
 
-    return kbbwp_string
+#     return kbbwp_string
 
 def gopher(hr, h):
     go_check = round(hr / h, 3)
@@ -158,7 +158,7 @@ def pitcher_control_number(walks, hb, hits_allowed, bf):
     return pcn
 
 def def_rating(pos, pct, year, a, po, gap, caught, sb_allowed):
-    sup_rate, arm_rate, range_rate, catch_rate = '', '8', '4', ''
+    sup_rate, arm_rate, range_rate, catch_arm = '', '8', '4', ''
     arm_check = round(a / gap, 2)
     range_check = round(po / gap, 1)
 
