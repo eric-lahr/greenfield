@@ -126,9 +126,31 @@ def rate_player(request, playerID, year, team_name):
             cursor.execute("""
                 SELECT SUM(SB), SUM(CS)
                 FROM Fielding
-                WHERE playerID = %s AND yearID = %s
+                WHERE playerID = %s AND yearID = %s AND POS = 'C'
             """, (playerID, year))
             sb_cs = cursor.fetchone()
+            sba_total = sb_cs[0] or 0
+            cs_total = sb_cs[1] or 0
+
+            # of_splits = []
+            of_stats = [row for row in fielding if row[0] == 'OF']
+            non_of_stats = [row for row in fielding if row[0] != 'OF']
+            of_splits = []
+
+            if of_stats:
+                cursor.execute("""
+                    SELECT POS, SUM(PO), SUM(A), SUM(E), SUM(G)
+                    FROM FieldingOFsplit
+                    WHERE playerID = %s AND yearID = %s
+                    GROUP BY POS
+                    HAVING SUM(G) >= 15
+                """, (playerID, year))
+                of_splits = cursor.fetchall()
+
+            if of_splits:
+                fielding = non_of_stats + of_splits
+            else:
+                fieldimng = non_of_stats + of_stats
 
     batting_stats = {
         'G': batting[10],
@@ -216,29 +238,30 @@ def rate_player(request, playerID, year, team_name):
     greenfield_dict['pitch_prob_hit'] = pitch_ph
 
     position_dict = {}
-    for position in fielding:
+    for position, po, a, e, g in fielding:
         # [('2B', 160, 206, 14), ('3B', 12, 26, 5), ('OF', 21, 1, 2)]
         fielding_stats = {
-            'G': position[4],
-            'POS': position[0],
-            'PO': position[1],
-            'A': position[2],
-            'E': position[3],
-            'CS': sb_cs[1],
-            'SBA': sb_cs[0]
+            'G': g, #position[4],
+            'POS': position, #position[0],
+            'PO': po, 
+            'A': a, #position[2],
+            'E': e, #position[3],
+            'CS': sba_total,
+            'SBA': cs_total
         }
 
-        successes = fielding_stats['PO'] + fielding_stats['A']
-        chances = fielding_stats['PO'] + fielding_stats['A'] + fielding_stats['E']
-        fpct = round(successes / chances, 3)
+        successes = po + a
+        chances = po + a + e #fielding_stats['PO'] + fielding_stats['A'] + fielding_stats['E']
+        fpct = round(successes / chances, 3) if chances > 0 else 0.000
         fielding_stats['PCT'] = fpct
+
         dr = def_rating(
             fielding_stats['POS'], fielding_stats['PCT'], int(year),
             fielding_stats['A'], fielding_stats['PO'], fielding_stats['G'],
             fielding_stats['CS'], fielding_stats['SBA']
         )
 
-        position_dict[position[0]] = dr
+        position_dict[position] = dr
 
     greenfield_dict['positions'] = position_dict
 

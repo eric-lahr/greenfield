@@ -54,7 +54,6 @@ def hr_3b_number(hr, trip, h):
 
 def speed(sb, h, bb, hbp, double, triple, hr):
     speed_check = round(sb / ((h + bb + hbp) - (double + triple + hr)), 3)
-    print('speed: ',speed_check)
 
     if speed_check >= .301: spd_rate = '****'
     elif speed_check >= .201: spd_rate = '***'
@@ -176,12 +175,15 @@ def def_rating(pos, pct, year, a, po, gap, caught, sb_allowed):
             (year < 1910) and (pct >= 985)):
             sup_rate = 'S'
         arm_rate = '9'
+        print(caught, sb_allowed)
         if (caught + sb_allowed) != 0:
-            catch_rate = (caught / (caught + sb_allowed))
-            if catch_rate >= .5: catch_arm = '-4'
-            elif catch_rate >= .41: catch_arm = '-3'
-            elif catch_rate >= .31: catch_arm = '-2'
-            elif catch_rate >= .21: catch_arm = '-1'
+            print(caught, sb_allowed)
+            catch_pct = (caught / (caught + sb_allowed))
+            print(catch_pct)
+            if catch_pct >= .5: catch_arm = '-4'
+            elif catch_pct >= .41: catch_arm = '-3'
+            elif catch_pct >= .31: catch_arm = '-2'
+            elif catch_pct >= .21: catch_arm = '-1'
         else: catch_arm = ''
     elif pos == '1B':
         if ((year >= 1910) and (pct >= 995) or
@@ -239,4 +241,4 @@ def def_rating(pos, pct, year, a, po, gap, caught, sb_allowed):
     if pos == 'dh':
         arm_rate, range_rate = 'D', 'H'
 
-    return sup_rate + arm_rate + range_rate + catch_rate
+    return sup_rate + arm_rate + range_rate + catch_arm
