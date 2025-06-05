@@ -17,7 +17,10 @@ def clutch(rbi, g):
     return cr
 
 def hit_letter(h, ab):
-    bavg = round(h / ab, 3)
+    if ab == 0 or h == 0:
+        bavg = .001
+    else:
+        bavg = round(h / ab, 3)
 
     if bavg >= .39: letter = 'AAA'
     elif bavg > .361: letter = 'AA'
@@ -64,8 +67,10 @@ def speed(sb, h, bb, hbp, double, triple, hr):
     return spd_rate
 
 def batter_bb_k(bb, so, hbp, pa):
-    walk_check = round((bb / pa) * 36) - 1
-    walk_num = sorted(numbers)[walk_check]
+    if bb == 0: walk_check, walk_num = 0, 'n'
+    else:
+        walk_check = round((bb / pa) * 36) - 1
+        walk_num = sorted(numbers)[walk_check]
     k_check = round((so / pa) * 36)
     k_num = sorted(numbers)[walk_check + k_check]
     hbp_check = math.ceil((hbp / pa) * 36)

@@ -165,7 +165,6 @@ def rate_player(request, playerID, year, team_name):
         '2B': batting[7],
         'RBI': batting[8],
         'SO': batting[9],
-        'bats': bats,
         'SB': batting[6],
         'SF': batting[11],
         'SH': batting[12]
@@ -186,8 +185,7 @@ def rate_player(request, playerID, year, team_name):
         'IPOuts': pitching[6],
         'SO': pitching[7],
         'HRA': pitching[8],
-        'WP': pitching[9],
-        'throws': throws
+        'WP': pitching[9]
     }
 
     if pitching_stats['BF']: 
@@ -200,7 +198,7 @@ def rate_player(request, playerID, year, team_name):
     else: pitching_stats['IP'] = 0
 
     # get sherco ratings - offense
-    if batting_stats['PA'] > 0:
+    if batting_stats['PA'] > 5:
         bat_clutch = clutch(batting_stats['RBI'], batting_stats['G'])
         bat_letter = hit_letter(batting_stats['H'], batting_stats['AB'])
         hr_num = hr_3b_number(batting_stats['HR'], batting_stats['3B'], batting_stats['H'])
@@ -212,9 +210,12 @@ def rate_player(request, playerID, year, team_name):
         prob_hit_num = probable_hit_number(batting_stats['H'], batting_stats['PA'])
 
         off_rate_str = bat_clutch+bat_letter+str(hr_num)+spd_rate+' '+walk_so
-    else: off_rate_str, probable_hit_num = '', 66
+    else: off_rate_str, prob_hit_num = 'G+ [n-36]', 66 
+
     greenfield_dict['offense'] = off_rate_str
     greenfield_dict['bat_prob_hit'] = prob_hit_num
+    greenfield_dict['bats'] = bats
+    greenfield_dict['throws'] = throws
 
     # get sherco ratings - pitching
     if pitching_stats['BF'] != None:
