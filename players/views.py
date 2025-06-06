@@ -1,4 +1,5 @@
-from django.shortcuts import render
+from django.shortcuts import render, redirect
+from django.urls import reverse
 from django.conf import settings
 from psycopg2.extras import RealDictCursor
 from greenfield.utils.lahman_db import (
@@ -15,6 +16,15 @@ from greenfield.utils.sherco import (
     pitcher_bb_k_hbp, wild_pitch, gopher,
     pitcher_control_number, def_rating
 )
+from .models import Players, Position, PlayerPositionRating  # Your Greenfield models
+from teams.models import Teams
+from django.db.models import Q
+from django.contrib import messages
+from .forms import PlayerForm, PlayerPositionRatingFormSet
+from django.forms import modelformset_factory
+from django.contrib import messages
+from django.db import transaction
+from urllib.parse import urlencode
 
 def create_players_from_team(request):
     if request.method == 'POST':
@@ -265,6 +275,7 @@ def rate_player(request, playerID, year, team_name):
         position_dict[position] = dr
 
     greenfield_dict['positions'] = position_dict
+    request.session['greenfield_data'] = greenfield_dict
 
     context = {
         'playerID': playerID,
@@ -284,3 +295,107 @@ def rate_player(request, playerID, year, team_name):
 
 def edit_players(request):
     return render(request, 'players/edit_player.html')
+
+def create_record(request):
+    if request.method == 'POST' and 'bats' in request.POST:
+        year = request.POST.get('year')
+        team_name = request.POST.get('team_name')
+        name_first = request.POST.get('name_first')
+        name_last = request.POST.get('name_last')
+
+        # Step 1: Get or create team
+        team, created = Teams.objects.get_or_create(first_name=year, team_name=team_name)
+        if created:
+            messages.info(request, f"{year} {team_name} team created.")
+        else:
+            messages.info(request, f"{year} {team_name} team already exists.")
+
+        # Step 2: Check for existing player on this team/year
+        player_exists = Players.objects.filter(
+            first_name=name_first,
+            last_name=name_last,
+            year=year,
+            team_serial=team
+        ).exists()
+
+        if player_exists:
+            messages.error(request, f"{name_first} {name_last} already exists for {year} {team_name}.")
+            params = urlencode({'year': year, 'team_name': team_name})
+            return redirect(f"{reverse('players:create_players_from_team')}?{params}")
+
+        # Step 3: Handle submitted form and formset
+        player_form = PlayerForm(request.POST)
+        rating_formset = PlayerPositionRatingFormSet(request.POST)
+
+        if player_form.is_valid() and rating_formset.is_valid():
+            with transaction.atomic():
+                player = player_form.save(commit=False)
+                player.first_name = name_first
+                player.last_name = name_last
+                player.year = year
+                player.team_serial = team
+                player.save()
+
+                for form in rating_formset:
+                    if form.cleaned_data and not form.cleaned_data.get('DELETE', False):
+                        PlayerPositionRating.objects.create(
+                            player=player,
+                            position=form.cleaned_data['position'],
+                            rating=form.cleaned_data['rating']
+                        )
+
+                messages.success(request, "Player and position ratings saved successfully.")
+
+            # Optional: clean up session
+            if 'greenfield_data' in request.session:
+                del request.session['greenfield_data']
+
+            params = urlencode({'year': year, 'team_name': team_name})
+            return redirect(f"{reverse('players:create_players_from_team')}?{params}")
+
+        else:
+            messages.error(request, "Please fix the form errors and try again.")
+
+    else:
+        # GET method — preload form from session data
+        greenfield_dict = request.session.get('greenfield_data', {})
+
+        year = greenfield_dict.get('year', '')
+        team_name = greenfield_dict.get('team_name', '')
+        name_first = greenfield_dict.get('first_name', '')
+        name_last = greenfield_dict.get('last_name', '')
+
+        player_form = PlayerForm(initial={
+            'bats': greenfield_dict.get('bats', ''),
+            'throws': greenfield_dict.get('throws', ''),
+            'uni_num': '',
+            'offense': greenfield_dict.get('offense', ''),
+            'bat_prob_hit': greenfield_dict.get('bat_prob_hit', ''),
+            'pitching': greenfield_dict.get('pitching', ''),
+            'pitch_ctl': greenfield_dict.get('pitch_ctl', ''),
+            'pitch_prob_hit': greenfield_dict.get('pitch_prob_hit', ''),
+        })
+
+        # Prepare initial data for formset from dict (positions: {pos_name: rating})
+        positions_data = greenfield_dict.get('positions', {})
+        formset_initial = []
+        for pos_name, rating in positions_data.items():
+            pos_obj = Position.objects.filter(name=pos_name).first()
+            if pos_obj:
+                formset_initial.append({
+                    'position': pos_obj.pk,
+                    'rating': rating
+                })
+
+        rating_formset = PlayerPositionRatingFormSet(
+            initial=formset_initial
+        )
+
+    return render(request, 'players/create_record.html', {
+        'form': player_form,
+        'formset': rating_formset,
+        'year': year,
+        'team_name': team_name,
+        'name_first': name_first,
+        'name_last': name_last
+    })

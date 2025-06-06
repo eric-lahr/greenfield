@@ -14,6 +14,10 @@ class Teams(models.Model):
     lineup4_serial = models.ForeignKey('teams.Lineups', on_delete=models.CASCADE, related_name='teams_lu4', null=True, blank=True)
     lineup5_serial = models.ForeignKey('teams.Lineups', on_delete=models.CASCADE, related_name='teams_lu5', null=True, blank=True)
 
+    @property
+    def id(self):
+        return self.serial
+
 class Lineups(models.Model):
 
     serial = models.AutoField(primary_key=True)
@@ -35,6 +39,10 @@ class Lineups(models.Model):
     eighth_pos = models.CharField()
     ninth = models.ForeignKey('players.Players', on_delete=models.CASCADE, related_name='lineups_9th', null=True, blank=True)
     ninth_pos = models.CharField()
+
+    @property
+    def id(self):
+        return self.serial
 
 class Logos(models.Model):
     team_serial = models.ForeignKey(Teams, on_delete=models.SET_NULL, null=True, blank=True)

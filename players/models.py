@@ -7,33 +7,39 @@ class Players(models.Model):
     year = models.CharField(default='career') # meant to be a year or career
     first_name = models.CharField(default='None')
     last_name = models.CharField(default='None')
-    position_1 = models.CharField(default='None')
-    position_2 = models.CharField(default='None')
-    position_3 = models.CharField(default='None')
-    position_4 = models.CharField(default='None')
-    position_5 = models.CharField(default='None')
-    position_6 = models.CharField(default='None')
-    position_7 = models.CharField(default='None')
-    position_8 = models.CharField(default='None')
-    position_9 = models.CharField(default='None')
     bats = models.CharField(max_length=3, default='R/L')
     throws = models.CharField(default='R/L')
     uni_num = models.IntegerField(null=True, blank=True)
-    defense_1 = models.CharField(default='84')
-    defense_2 = models.CharField(default='None')
-    defense_3 = models.CharField(default='None')
-    defense_4 = models.CharField(default='None')
-    defense_5 = models.CharField(default='None')
-    defense_6 = models.CharField(default='None')
-    defense_7 = models.CharField(default='None')
-    defense_8 = models.CharField(default='None')
-    defense_9 = models.CharField(default='None')
     offense = models.CharField(null=True, blank=True)
     bat_prob_hit = models.IntegerField(null=True, blank=True)
     pitching = models.CharField(null=True, blank=True)
     pitch_ctl = models.IntegerField(null=True, blank=True)
     pitch_prob_hit = models.IntegerField(null=True, blank=True)
     team_serial = models.ForeignKey('teams.Teams', on_delete=models.SET_NULL, null=True, blank=True)
+
+    @property
+    def id(self):
+        return self.serial
+
+    def __str__(self):
+        return f"{self.first_name} {self.last_name} ({self.year})"
+
+class Position(models.Model):
+    name = models.CharField(max_length=3, unique=True)  # e.g., 'P', 'C', '1B', etc.
+
+    def __str__(self):
+        return self.name
+
+class PlayerPositionRating(models.Model):
+    player = models.ForeignKey(Players, on_delete=models.CASCADE, related_name='position_ratings')
+    position = models.ForeignKey(Position, on_delete=models.CASCADE)
+    rating = models.CharField(max_length=10)
+
+    class Meta:
+        unique_together = ('player', 'position')
+
+    def __str__(self):
+        return f"{self.player} - {self.position.name}: {self.rating}"
 
 class PlayerPicture(models.Model):
 
