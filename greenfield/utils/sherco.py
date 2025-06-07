@@ -42,11 +42,12 @@ def hr_3b_number(hr, trip, h):
     hr_trp_score = ''
     if hr > 0 and h > 0:
         hr_check = (hr / h) * 36
-        if hr_check < .5: hr_num = ''
+        if hr_check < .5: hr_num, hr_check = '', 0
         elif hr_check >= .5:
             hr_check = round(hr_check) - 1
             hr_num = sorted(numbers)[hr_check]
         hr_trp_score += str(hr_num)
+    else: hr_check = 0
     
     if trip > 0 and h > 0:
         trip_check = round((trip / h) * 36)
@@ -71,7 +72,8 @@ def batter_bb_k(bb, so, hbp, pa):
     if bb == 0: walk_check, walk_num = 0, 'n'
     else:
         walk_check = round((bb / pa) * 36) - 1
-        walk_num = sorted(numbers)[walk_check]
+        if walk_check <= 0: walk_num, walk_check = 'n', 0
+        else: walk_num = sorted(numbers)[walk_check]
     k_check = round((so / pa) * 36)
     k_num = sorted(numbers)[walk_check + k_check]
     hbp_check = math.ceil((hbp / pa) * 36)

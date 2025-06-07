@@ -1,5 +1,11 @@
 {% block content %}
 
+<div class="jumbotron text-center">
+  <h1><strong> {{ name_first }} {{ name_last }}</h1>
+  <p>{{ year }} {{ team_name }}</p>
+  <p>bats: {{ greenfield.bats }}  throws: {{ greenfield.throws }}</p>
+</div>
+
 <h2>Confirm Player Record</h2>
 
 {% if messages %}
@@ -53,7 +59,7 @@
   {% endfor %}
 
   <button type="submit" name="confirm_save" class="btn btn-success mt-3">Confirm and Save</button>
-  
+
 </form>
 
 {% endblock %}

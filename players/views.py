@@ -129,7 +129,7 @@ def rate_player(request, playerID, year, team_name):
                 FROM Fielding
                 WHERE playerID = %s AND yearID = %s
                 GROUP BY POS
-                HAVING SUM(G) >= 15
+                HAVING SUM(G) >= 6
             """, (playerID, year))
             fielding = cursor.fetchall()
             # field ex. = [('2B', 160, 206, 14), ('3B', 12, 26, 5), ('OF', 21, 1, 2)]
@@ -207,6 +207,7 @@ def rate_player(request, playerID, year, team_name):
         elif ip_rem == 2: half_inn = .667
         else: half_inn = 0
         pitching_stats['IP'] = ip_whole + half_inn
+        print(pitching_stats['IP'])
     else: pitching_stats['IP'] = 0
 
     # get sherco ratings - offense
@@ -214,10 +215,12 @@ def rate_player(request, playerID, year, team_name):
         bat_clutch = clutch(batting_stats['RBI'], batting_stats['G'])
         bat_letter = hit_letter(batting_stats['H'], batting_stats['AB'])
         hr_num = hr_3b_number(batting_stats['HR'], batting_stats['3B'], batting_stats['H'])
-        spd_rate = speed(
-            batting_stats['SB'], batting_stats['H'], batting_stats['BB'], batting_stats['HBP'],
-            batting_stats['2B'], batting_stats['3B'], batting_stats['HR']
-            )
+        if batting_stats['SB'] > 0:
+            spd_rate = speed(
+                batting_stats['SB'], batting_stats['H'], batting_stats['BB'], batting_stats['HBP'],
+                batting_stats['2B'], batting_stats['3B'], batting_stats['HR']
+                )
+        else: spd_rate = ''
         walk_so = batter_bb_k(batting_stats['BB'], batting_stats['SO'], batting_stats['HBP'], batting_stats['PA'])
         prob_hit_num = probable_hit_number(batting_stats['H'], batting_stats['PA'])
 
