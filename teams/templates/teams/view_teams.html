@@ -8,7 +8,7 @@
     <select name="team_id" class="form-control" onchange="this.form.submit()">
       <option value="">-- Select a team --</option>
       {% for team in teams %}
-        <option value="{{ team.id }}" {% if team.id|stringformat:"s" == selected_team_id %}selected{% endif %}>
+        <option value="{{ team.serial }}" {% if team.serial|stringformat:"s" == selected_team_id %}selected{% endif %}>
           {{ team.first_name }} {{ team.team_name }}
         </option>
       {% endfor %}
@@ -27,6 +27,7 @@
         <th>Throws</th>
         <th>Offense</th>
         <th>Defense</th>
+        <th>Pitching</th>
       </tr>
     </thead>
     <tbody>
@@ -43,6 +44,7 @@
             {% empty %}
               <i>No positions</i>
             {% endfor %}
+          <td>{{ player.piching }}</td>
           </td>
         </tr>
       {% endfor %}

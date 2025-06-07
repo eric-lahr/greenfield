@@ -6,7 +6,7 @@ register = template.Library()
 @register.filter
 def get_team_name(teams, selected_id):
     try:
-        team = teams.get(id=selected_id)
+        team = teams.get(serial=selected_id)
         return f"{team.first_name} {team.team_name}"
     except Teams.DoesNotExist:
         return "Unknown Team"
