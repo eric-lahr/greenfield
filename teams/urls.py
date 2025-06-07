@@ -5,4 +5,5 @@ urlpatterns = [
     path('create/', views.create_team, name='create'),
     path('teams/view/', views.view_teams, name='view_teams'),
     path('edit/', views.edit_team, name='edit'),
+    path('teams/<int:team_serial>/pdf/', views.create_team_pdf, name='create_team_pdf'),
 ]

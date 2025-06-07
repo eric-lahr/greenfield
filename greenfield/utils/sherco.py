@@ -183,11 +183,8 @@ def def_rating(pos, pct, year, a, po, gap, caught, sb_allowed):
             (year < 1910) and (pct >= 985)):
             sup_rate = 'S'
         arm_rate = '9'
-        print(caught, sb_allowed)
         if (caught + sb_allowed) != 0:
-            print(caught, sb_allowed)
             catch_pct = (caught / (caught + sb_allowed))
-            print(catch_pct)
             if catch_pct >= .5: catch_arm = '-4'
             elif catch_pct >= .41: catch_arm = '-3'
             elif catch_pct >= .31: catch_arm = '-2'
