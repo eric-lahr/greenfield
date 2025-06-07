@@ -40,10 +40,11 @@
           <td>{{ player.offense }}</td>
           <td>
             {% for rating in player_ratings|get:player.id %}
-              {{ rating.position.name }}: {{ rating.rating }}<br>
+              {{ rating.position.name }}: {{ rating.rating }}{% if not forloop.last %}, {% endif %}
             {% empty %}
               <i>No positions</i>
             {% endfor %}
+          </td>          
           {% if player.pitching %}
             <td>{{ player.pitching }}</td>
           {% endif %}
