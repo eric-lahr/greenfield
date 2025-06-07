@@ -12,8 +12,8 @@
   {% csrf_token %}
 
   <!-- Hidden identity fields -->
-  <input type="hidden" name="first_name" value="{{ name_first }}">
-  <input type="hidden" name="last_name" value="{{ name_last }}">
+  <input type="hidden" name="name_first" value="{{ name_first }}">
+  <input type="hidden" name="name_last" value="{{ name_last }}">
   <input type="hidden" name="year" value="{{ year }}">
   <input type="hidden" name="team_name" value="{{ team_name }}">
 
@@ -52,7 +52,8 @@
     </div>
   {% endfor %}
 
-  <button type="submit" class="btn btn-success mt-3">Confirm and Save</button>
+  <button type="submit" name="confirm_save" class="btn btn-success mt-3">Confirm and Save</button>
+  
 </form>
 
 {% endblock %}

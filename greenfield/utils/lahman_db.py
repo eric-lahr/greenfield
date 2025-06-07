@@ -49,7 +49,8 @@ def get_rated_player_status(year, team_name, lahman_players):
         return {p['playerid']: False for p in lahman_players}
 
     rated_ids = set(
-        Players.objects.filter(
+        (first.strip().lower(), last.strip().lower())
+        for (first, last) in Players.objects.filter(
             year=year,
             team_serial=team.id
         ).values_list('first_name', 'last_name')
@@ -58,8 +59,18 @@ def get_rated_player_status(year, team_name, lahman_players):
     # Create a dict of playerid → status
     status_lookup = {}
     for player in lahman_players:
-        is_rated = (player['namefirst'], player['namelast']) in rated_ids
+        name_tuple = (player['namefirst'].lower(), player['namelast'].lower())
+        is_rated = name_tuple in rated_ids
         status_lookup[player['playerid']] = 'rated' if is_rated else ''
+
+    ############################
+    print(f"Checking for team: {team.id} ({team.first_name} {team.team_name})")
+    print("All players in DB for that team and year:")
+    for p in Players.objects.filter(year=year, team_serial=team.id):
+        print(f"  - {p.first_name} {p.last_name} (year={p.year}, team_serial={p.team_serial})")
+
+    ############################
+
     return status_lookup
 
 def get_player_season_stats(player_id, year):

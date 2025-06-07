@@ -42,9 +42,10 @@ def hr_3b_number(hr, trip, h):
     hr_trp_score = ''
     if hr > 0 and h > 0:
         hr_check = (hr / h) * 36
-        hr_check = round(hr_check) - 1
-        if hr_check <= 0: hr_num = ''
-        else: hr_num = sorted(numbers)[hr_check]
+        if hr_check < .5: hr_num = ''
+        elif hr_check >= .5:
+            hr_check = round(hr_check) - 1
+            hr_num = sorted(numbers)[hr_check]
         hr_trp_score += str(hr_num)
     
     if trip > 0 and h > 0:

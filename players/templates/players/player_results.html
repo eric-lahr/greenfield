@@ -15,8 +15,10 @@
           <a href="{% url 'players:rate_player' player.playerid year team_name %}?namefirst={{ player.namefirst|urlencode }}&namelast={{ player.namelast|urlencode }}">
             {{ player.namefirst }} {{ player.namelast }}
           </a>
-          {% if status_lookup|get_item:player.playerid %}
-            - <em>{{ status_lookup|get_item:player.playerid }}</em>
+          {% if status_lookup|get_item:player.playerid == 'rated' %}
+            <span class="badge bg-success">Rated</span>
+          {% else %}
+            <span class="badge bg-secondary">Unrated</span>
           {% endif %}
         </li>
         {% endfor %}
