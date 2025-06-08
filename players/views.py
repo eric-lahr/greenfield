@@ -16,6 +16,7 @@ from greenfield.utils.sherco import (
     pitcher_bb_k_hbp, wild_pitch, gopher,
     pitcher_control_number, def_rating
 )
+from greenfield.utils.all_time import all_time_team_finder
 from .models import Players, Position, PlayerPositionRating  # Your Greenfield models
 from teams.models import Teams
 from django.db.models import Q
@@ -37,7 +38,7 @@ def create_players_from_team(request):
             'searched': True
         })
 
-    if year and team_name:
+    if year and team_name and year != 'All Time':
         # Convert 'Pirates' -> 'PIT'
         team_id = get_teamID_from_name(year, team_name)
         if not team_id:
@@ -47,8 +48,11 @@ def create_players_from_team(request):
             })
 
         # FIXED: use team_id instead of team_name
-        players = get_players_by_team_and_year(year, team_id)
-        status_lookup = get_rated_player_status(year, team_name, players)
+        if year == 'All Time':
+            return redirect(reverse('players:search_career_players'))
+        else:
+            players = get_players_by_team_and_year(year, team_id)
+            status_lookup = get_rated_player_status(year, team_name, players)
 
         if not players:
             return render(request, 'players/player_results.html', {
@@ -70,10 +74,330 @@ def create_players_from_team(request):
     # If no year/team_name provided, show the form
     return render(request, 'players/create_players_from_team.html')
 
+def search_career_players(request):
+    players = []
+    first_name = last_name = ""
 
-def create_career_player(request):
-    return render(request, 'players/create_custom_player.html')
+    if request.method == "GET" and request.GET.get("first_name") and request.GET.get("last_name"):
+        first_name = request.GET.get("first_name").strip().lower()
+        last_name = request.GET.get("last_name").strip().lower()
 
+        conn = get_lahman_connection()
+        cursor = conn.cursor()
+
+        query = """
+            SELECT p.playerID, p.nameFirst, p.nameLast, p.nameGiven,
+                MIN(stats.yearID) AS first_year,
+                MAX(stats.yearID) AS last_year,
+
+                -- Primary Team
+                (
+                    SELECT t.name
+                    FROM (
+                        SELECT teamID, SUM(G) as total_games
+                        FROM (
+                            SELECT teamID, G FROM Batting WHERE playerID = p.playerID
+                            UNION ALL
+                            SELECT teamID, G FROM Pitching WHERE playerID = p.playerID
+                            UNION ALL
+                            SELECT teamID, G FROM Fielding WHERE playerID = p.playerID
+                        ) AS appearances
+                        GROUP BY teamID
+                        ORDER BY total_games DESC
+                        LIMIT 1
+                    ) AS top_team
+                    JOIN Teams t ON t.teamID = top_team.teamID
+                    ORDER BY t.yearID DESC
+                    LIMIT 1
+                ) AS primary_team,
+
+                -- Primary Position
+                (
+                    SELECT POS
+                    FROM Fielding f
+                    WHERE f.playerID = p.playerID
+                    GROUP BY POS
+                    ORDER BY SUM(G) DESC
+                    LIMIT 1
+                ) AS primary_position
+
+            FROM People p
+            JOIN (
+                SELECT playerID, yearID FROM Batting
+                UNION
+                SELECT playerID, yearID FROM Pitching
+                UNION
+                SELECT playerID, yearID FROM Fielding
+            ) stats USING(playerID)
+            WHERE LOWER(p.nameFirst) = %s AND LOWER(p.nameLast) = %s
+            GROUP BY p.playerID, p.nameFirst, p.nameLast, p.nameGiven
+            ORDER BY p.nameGiven
+        """
+
+        cursor.execute(query, (first_name, last_name))
+        players = cursor.fetchall()
+        conn.close()
+
+    return render(request, "players/career_search.html", {
+        "players": players,
+        "first_name": first_name,
+        "last_name": last_name,
+    })
+
+def rate_player_career(request, player_id):
+    greenfield_dict = {'year': 'All Time'}
+
+    with get_lahman_connection() as conn:
+        with conn.cursor() as cursor:
+            # Player names
+            cursor.execute("""
+                SELECT nameFirst, nameLast, nameGiven,
+                EXTRACT(YEAR FROM debut)
+                FROM People
+                WHERE playerID = %s
+            """, (player_id,))
+            result = cursor.fetchone()
+            name_first, name_last, name_given, debut = result
+            print(debut)
+            greenfield_dict['first_name'] = name_first
+            greenfield_dict['last_name'] = name_last
+            greenfield_dict['debut_year'] = int(debut)
+
+            # Bats / Throws
+            cursor.execute("""
+                SELECT bats, throws
+                FROM People
+                WHERE playerID = %s
+            """, (player_id,))
+            bats_throws = cursor.fetchone()
+            bats = bats_throws[0] if bats_throws else None
+            throws = bats_throws[1] if bats_throws else None
+
+            # Batting totals
+            cursor.execute("""
+                SELECT
+                    SUM(H), SUM(AB), SUM(HR), SUM("3B"), SUM(BB), SUM(HBP),
+                    SUM(SB), SUM("2B"), SUM(RBI), SUM(SO), SUM(G), SUM(SF),
+                    SUM(SH)
+                FROM Batting
+                WHERE playerID = %s
+            """, (player_id,))
+            batting = cursor.fetchone()
+
+            # Pitching totals
+            cursor.execute("""
+                SELECT
+                    SUM(BFP), SUM(H), SUM(BB), SUM(HBP), SUM(SH), SUM(SF),
+                    SUM(G), SUM(IPouts), SUM(SO), SUM(HR), SUM(WP)
+                FROM Pitching
+                WHERE playerID = %s
+            """, (player_id,))
+            pitching = cursor.fetchone()
+
+            # Fielding summary by position
+            cursor.execute("""
+                SELECT POS, SUM(PO), SUM(A), SUM(E), SUM(G)
+                FROM Fielding
+                WHERE playerID = %s
+                GROUP BY POS
+                HAVING SUM(G) >= 6
+            """, (player_id,))
+            fielding = cursor.fetchall()
+
+            # Catcher SB/CS
+            cursor.execute("""
+                SELECT SUM(SB), SUM(CS)
+                FROM Fielding
+                WHERE playerID = %s AND POS = 'C'
+            """, (player_id,))
+            sb_cs = cursor.fetchone()
+            sba_total = sb_cs[0] or 0
+            cs_total = sb_cs[1] or 0
+
+            # OF Splits
+            of_stats = [row for row in fielding if row[0] == 'OF']
+            non_of_stats = [row for row in fielding if row[0] != 'OF']
+            of_splits = []
+
+            if of_stats:
+                cursor.execute("""
+                    SELECT POS, SUM(PO), SUM(A), SUM(E), SUM(G)
+                    FROM FieldingOFsplit
+                    WHERE playerID = %s
+                    GROUP BY POS
+                    HAVING SUM(G) >= 15
+                """, (player_id,))
+                of_splits = cursor.fetchall()
+
+            if of_splits:
+                fielding = non_of_stats + of_splits
+            else:
+                fielding = non_of_stats + of_stats
+
+            # Get top franchise by appearances
+            cursor.execute("""
+                SELECT teamID, SUM(G) AS total_games
+                FROM (
+                    SELECT teamID, G FROM Batting WHERE playerID = %s
+                    UNION ALL
+                    SELECT teamID, G FROM Pitching WHERE playerID = %s
+                    UNION ALL
+                    SELECT teamID, G FROM Fielding WHERE playerID = %s
+                ) AS combined
+                GROUP BY teamID
+                ORDER BY total_games DESC
+                LIMIT 1
+            """, (player_id, player_id, player_id))
+            top_team = cursor.fetchone()
+            team_id = top_team[0] if top_team else 'UNK'
+
+            cursor.execute("""
+                SELECT f.franchName
+                FROM Teams t
+                JOIN TeamsFranchises f ON t.franchID = f.franchID
+                WHERE t.teamID = %s
+                ORDER BY t.yearID DESC
+                LIMIT 1
+            """, (team_id,))
+            team_row = cursor.fetchone()
+            team_name = team_row[0] if team_row else "Unknown Team"
+            fran_name = all_time_team_finder(team_name, greenfield_dict['debut_year'])
+            greenfield_dict['team_name'] = fran_name
+            print(team_name)
+
+    # --- Sherco Ratings Calculations ---
+
+    # Batting block
+    batting_stats = {
+        'G': batting[10],
+        'H': batting[0],
+        'AB': batting[1],
+        'HR': batting[2],
+        '2B': batting[7],
+        '3B': batting[3],
+        'BB': batting[4],
+        'HBP': batting[5],
+        'SB': batting[6],
+        'RBI': batting[8],
+        'SO': batting[9],
+        'SF': batting[11],
+        'SH': batting[12]
+    }
+
+    for key in ['SH', 'SF']:
+        if batting_stats[key] is None:
+            batting_stats[key] = 0
+
+    pa = sum([
+        batting_stats['AB'] or 0,
+        batting_stats['BB'] or 0,
+        batting_stats['HBP'] or 0,
+        batting_stats['SF'] or 0,
+        batting_stats['SH'] or 0
+    ])
+    batting_stats['PA'] = pa
+
+    if pa > 5:
+        off_rate_str = (
+            clutch(batting_stats['RBI'], batting_stats['G']) +
+            hit_letter(batting_stats['H'], batting_stats['AB']) +
+            str(hr_3b_number(batting_stats['HR'], batting_stats['3B'], batting_stats['H'])) +
+            (speed(
+                batting_stats['SB'], batting_stats['H'], batting_stats['BB'], batting_stats['HBP'],
+                batting_stats['2B'], batting_stats['3B'], batting_stats['HR']
+            ) if batting_stats['SB'] else '') + ' ' +
+            batter_bb_k(batting_stats['BB'], batting_stats['SO'], batting_stats['HBP'], batting_stats['PA'])
+        )
+        prob_hit_num = probable_hit_number(batting_stats['H'], batting_stats['PA'])
+    else:
+        off_rate_str, prob_hit_num = 'G+ [n-36]', 66
+
+    greenfield_dict.update({
+        'offense': off_rate_str,
+        'bat_prob_hit': prob_hit_num,
+        'bats': bats,
+        'throws': throws
+    })
+
+    # Pitching block
+    pitching_stats = {
+        'BF': pitching[0],
+        'HA': pitching[1],
+        'BB': pitching[2],
+        'HBP': pitching[3],
+        'G': pitching[6],
+        'IPOuts': pitching[7],
+        'SO': pitching[8],
+        'HRA': pitching[9],
+        'WP': pitching[10]
+    }
+
+    if pitching_stats['BF']:
+        ip_whole = pitching_stats['IPOuts'] // 3
+        ip_rem = pitching_stats['IPOuts'] % 3
+        half_inn = {1: .333, 2: .667}.get(ip_rem, 0)
+        pitching_stats['IP'] = ip_whole + half_inn
+        pitching_stats['SH'] = pitching[4] if pitching[4] is not None else 0
+        pitching_stats['SF'] = pitching[5] if pitching[5] is not None else 0
+        print(pitching_stats['SF'], pitching_stats['SH'])
+    else:
+        pitching_stats['IP'] = 0
+
+    if pitching_stats['BF']:
+        OppAB = (
+            (pitching_stats['BF'] - pitching_stats['BB'] - pitching_stats['HBP']) - 
+            (pitching_stats['SH'] - pitching_stats['SF'])
+            )
+        if OppAB > 0:
+            BAOpp = round(pitching_stats['HA'] / OppAB, 3)
+        else: BAOpp = .4
+        pitch_string = (
+            gopher(pitching_stats['HRA'], pitching_stats['HA']) +
+            pitch_letter(BAOpp) +
+            innings_of_effectiveness(pitching_stats['G'], pitching_stats['IP']) + ' ' +
+            pitcher_bb_k_hbp(pitching_stats['BF'], pitching_stats['BB'], pitching_stats['SO'], pitching_stats['HBP']) + ' ' +
+            wild_pitch(pitching_stats['WP'])
+        )
+        pcn = pitcher_control_number(pitching_stats['BB'], pitching_stats['HBP'], pitching_stats['HA'], pitching_stats['BF'])
+        pitch_ph = probable_hit_number(pitching_stats['HA'], pitching_stats['BF'])
+    else:
+        pitch_string, pcn, pitch_ph, BAOpp = '', '', '', 0
+
+    greenfield_dict.update({
+        'pitching': pitch_string,
+        'pitch_ctl': pcn,
+        'pitch_prob_hit': pitch_ph
+    })
+
+    # Fielding ratings
+    position_dict = {}
+    for pos, po, a, e, g in fielding:
+        successes = po + a
+        chances = po + a + e
+        fpct = round(successes / chances, 3) if chances > 0 else 0.000
+        dr = def_rating(pos, fpct, 9999, a, po, g, cs_total, sba_total)
+        position_dict[pos] = dr
+
+    greenfield_dict['positions'] = position_dict
+    request.session['greenfield_data'] = greenfield_dict
+
+    context = {
+        'playerID': player_id,
+        'year': 'All Time',
+        'team_name': team_name,
+        'batting': batting,
+        'pitching': pitching,
+        'fielding': fielding,
+        'sb': sba_total,
+        'cs': cs_total,
+        'name_first': name_first,
+        'name_last': name_last,
+        'greenfield': greenfield_dict,
+        'pa': pa,
+        'baopp': BAOpp,
+        'career_mode': True,
+    }
+    return render(request, 'players/rate_player.html', context)
 
 def view_player(request, playerID):
     with connection.cursor() as cursor:
@@ -268,6 +592,7 @@ def rate_player(request, playerID, year, team_name):
 
         successes = po + a
         chances = po + a + e #fielding_stats['PO'] + fielding_stats['A'] + fielding_stats['E']
+        print(successes, chances)
         fpct = round(successes / chances, 3) if chances > 0 else 0.000
         fielding_stats['PCT'] = fpct
 
@@ -300,110 +625,6 @@ def rate_player(request, playerID, year, team_name):
 
 def edit_players(request):
     return render(request, 'players/edit_player.html')
-
-# def create_record(request):
-#     if request.method == 'POST' and 'bats' in request.POST:
-#         year = request.POST.get('year')
-#         team_name = request.POST.get('team_name')
-#         name_first = request.POST.get('name_first')
-#         name_last = request.POST.get('name_last')
-
-#         # Step 1: Get or create team
-#         team, created = Teams.objects.get_or_create(first_name=year, team_name=team_name)
-#         if created:
-#             messages.info(request, f"{year} {team_name} team created.")
-#         else:
-#             messages.info(request, f"{year} {team_name} team already exists.")
-
-#         # Step 2: Check for existing player on this team/year
-#         player_exists = Players.objects.filter(
-#             first_name=name_first,
-#             last_name=name_last,
-#             year=year,
-#             team_serial=team
-#         ).exists()
-
-#         if player_exists:
-#             messages.error(request, f"{name_first} {name_last} already exists for {year} {team_name}.")
-#             params = urlencode({'year': year, 'team_name': team_name})
-#             return redirect(f"{reverse('players:create_players_from_team')}?{params}")
-
-#         # Step 3: Handle submitted form and formset
-#         player_form = PlayerForm(request.POST)
-#         rating_formset = PlayerPositionRatingFormSet(request.POST)
-
-#         if player_form.is_valid() and rating_formset.is_valid():
-#             with transaction.atomic():
-#                 player = player_form.save(commit=False)
-#                 player.first_name = name_first
-#                 player.last_name = name_last
-#                 player.year = year
-#                 player.team_serial = team
-#                 player.save()
-
-#                 for form in rating_formset:
-#                     if form.cleaned_data and not form.cleaned_data.get('DELETE', False):
-#                         PlayerPositionRating.objects.create(
-#                             player=player,
-#                             position=form.cleaned_data['position'],
-#                             rating=form.cleaned_data['rating']
-#                         )
-
-#                 messages.success(request, "Player and position ratings saved successfully.")
-
-#             # Optional: clean up session
-#             if 'greenfield_data' in request.session:
-#                 del request.session['greenfield_data']
-
-#             params = urlencode({'year': year, 'team_name': team_name})
-#             return redirect(f"{reverse('players:create_players_from_team')}?{params}")
-
-#         else:
-#             messages.error(request, "Please fix the form errors and try again.")
-
-#     else:
-#         # GET method — preload form from session data
-#         greenfield_dict = request.session.get('greenfield_data', {})
-
-#         year = greenfield_dict.get('year', '')
-#         team_name = greenfield_dict.get('team_name', '')
-#         name_first = greenfield_dict.get('first_name', '')
-#         name_last = greenfield_dict.get('last_name', '')
-
-#         player_form = PlayerForm(initial={
-#             'bats': greenfield_dict.get('bats', ''),
-#             'throws': greenfield_dict.get('throws', ''),
-#             'uni_num': '',
-#             'offense': greenfield_dict.get('offense', ''),
-#             'bat_prob_hit': greenfield_dict.get('bat_prob_hit', ''),
-#             'pitching': greenfield_dict.get('pitching', ''),
-#             'pitch_ctl': greenfield_dict.get('pitch_ctl', ''),
-#             'pitch_prob_hit': greenfield_dict.get('pitch_prob_hit', ''),
-#         })
-
-#         # Prepare initial data for formset from dict (positions: {pos_name: rating})
-#         positions_data = greenfield_dict.get('positions', {})
-#         formset_initial = []
-#         for pos_name, rating in positions_data.items():
-#             pos_obj = Position.objects.filter(name=pos_name).first()
-#             if pos_obj:
-#                 formset_initial.append({
-#                     'position': pos_obj.pk,
-#                     'rating': rating
-#                 })
-
-#         rating_formset = PlayerPositionRatingFormSet(
-#             initial=formset_initial
-#         )
-
-#     return render(request, 'players/create_record.html', {
-#         'form': player_form,
-#         'formset': rating_formset,
-#         'year': year,
-#         'team_name': team_name,
-#         'name_first': name_first,
-#         'name_last': name_last
-#     })
 
 def create_record(request):
     if request.method == 'POST' and 'confirm_save' in request.POST:
@@ -467,8 +688,11 @@ def create_record(request):
             # Clean up session
             request.session.pop('greenfield_data', None)
 
-            params = urlencode({'year': year, 'team_name': team_name})
-            return redirect(f"{reverse('players:create_players_from_team')}?{params}")
+            if year == 'All Time':
+                return redirect(reverse('players:search_career_players'))
+            else:
+                params = urlencode({'year': year, 'team_name': team_name})
+                return redirect(f"{reverse('players:create_players_from_team')}?{params}")
         else:
             messages.error(request, "Please fix the form errors and try again.")
     else:

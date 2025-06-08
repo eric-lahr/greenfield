@@ -147,9 +147,11 @@ def pitcher_bb_k_hbp(bf, bb, so, hbp):
 #     return kbbwp_string
 
 def gopher(hr, h):
-    go_check = round(hr / h, 3)
-    if go_check >= .1: gopher_string = '+'
-    else: gopher_string = ''
+    if hr == 0 or h == 0: gopher_string = ''
+    else:
+        go_check = round(hr / h, 3)
+        if go_check >= .1: gopher_string = '+'
+        else: gopher_string = ''
 
     return gopher_string
 

@@ -13,8 +13,14 @@
 </head>
 <body>
     <div class="jumbotron text-center">
-        <h1><strong> {{ name_first }} {{ name_last }}</h1>
-        <p>{{ year }} {{ team_name }}</p>
+        <h1><strong> {{ name_first }} {{ name_last }}</h1>    
+        <h3>
+            {% if career_mode %}
+                All Time {{ greenfield.team_name }}
+            {% else %}
+                {{ year }} {{ greenfield.team_name }}
+            {% endif %}
+            </h3>              
         <p>bats: {{ greenfield.bats }}  throws: {{ greenfield.throws }}</p>
     </div>
     <div class="container">
@@ -52,7 +58,11 @@
                                     <li>BFP: {{ pitching.0|default:0 }}</li>
                                     <li>H: {{ pitching.1|default:0 }}</li>
                                     <li>HR: {{ pitching.8|default:0 }}</li>
+                                    {% if career_mode %}
+                                    <li>BAOpp: {{ baopp|default:0 }}</li>
+                                    {% else %}
                                     <li>BAOpp: {{ pitching.4|default:0 }}</li>
+                                    {% endif %}
                                 </ul>
                             </div>
                             <div class="col-sm-6">

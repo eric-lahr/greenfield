@@ -39,6 +39,7 @@
       <div class="col-sm-6 d-flex justify-content-center align-items-center">
         {% if selected_team_id %}
           <a href="{% url 'create_team_pdf' selected_team_id %}" class="btn btn-primary">Create PDF File</a>
+          <a href="{% url 'menu:home' %}" class="btn btn-primary ms-3" style="margin-left: 40px;">Return to Main Menu</a>
         {% endif %}
       </div>
     </div>

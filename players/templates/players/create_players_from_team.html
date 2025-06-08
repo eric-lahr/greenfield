@@ -17,6 +17,11 @@
 
       <input type="submit" value="Search">
     </form>
+    {% if messages %}
+      {% for message in messages %}
+        <div class="alert alert-info">{{ message }}</div>
+      {% endfor %}
+    {% endif %}
 
     {% if players %}
       <h3>Players:</h3>
