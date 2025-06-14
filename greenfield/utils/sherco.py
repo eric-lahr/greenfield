@@ -147,10 +147,11 @@ def pitcher_bb_k_hbp(bf, bb, so, hbp):
 #     return kbbwp_string
 
 def gopher(hr, h):
-    if hr == 0 or h == 0: gopher_string = ''
+    if h == 0: gopher_string = ''
     else:
         go_check = round(hr / h, 3)
         if go_check >= .1: gopher_string = '+'
+        elif go_check <=.05: gopher_string = '-'
         else: gopher_string = ''
 
     return gopher_string
@@ -163,89 +164,128 @@ def wild_pitch(wp):
 
 def pitcher_control_number(walks, hb, hits_allowed, bf):
     br_check = round(((walks + hits_allowed + hb) / bf) * 36)
-    pcn = str(sorted(numbers, reverse=True)[br_check])
+    if br_check == 36: pcn = 11
+    else:
+        pcn = str(sorted(numbers, reverse=True)[br_check])
 
     return pcn
 
-def def_rating(pos, pct, year, a, po, gap, caught, sb_allowed):
-    sup_rate, arm_rate, range_rate, catch_arm = '', '8', '4', ''
-    arm_check = round(a / gap, 2)
-    range_check = round(po / gap, 1)
+def get_superior_rating(pos, pct, year):
+    """Return 'S' if fielding pct qualifies for Superior based on position and year."""
+    pos = pos.upper().strip()
+    
+    # Default to a very high threshold (basically unachievable)
+    threshold = 1.1
 
     if pos == 'P':
-        if ((year >= 1950) and (pct >= 980) or
-            (year < 1950) and (pct >= 990)):
-            sup_rate = 'S'
-        if arm_check >= .7: arm_rate = '9'
-        if range_check >= .3: range_rate = '5'
+        if year >= 1950: threshold = .980
+        elif year >= 1930: threshold = .990
+        else: threshold = .990
     elif pos == 'C':
-        if ((year >= 1950) and (pct >= 993) or
-            (1920 <= year < 1950) and (pct >= 990) or
-            (1910 <= year < 1920) and (pct >= 989) or
-            (year < 1910) and (pct >= 985)):
-            sup_rate = 'S'
-        arm_rate = '9'
-        if (caught + sb_allowed) != 0:
-            catch_pct = (caught / (caught + sb_allowed))
-            if catch_pct >= .5: catch_arm = '-4'
-            elif catch_pct >= .41: catch_arm = '-3'
-            elif catch_pct >= .31: catch_arm = '-2'
-            elif catch_pct >= .21: catch_arm = '-1'
-        else: catch_arm = ''
+        if year >= 1950: threshold = .993
+        elif year >= 1930: threshold = .990
+        elif year >= 1920: threshold = .990
+        elif year >= 1910: threshold = .989
+        else: threshold = .985
     elif pos == '1B':
-        if ((year >= 1910) and (pct >= 995) or
-            (1910 > year) and (pct >=994)):
-            sup_rate = 'S'
-        if arm_check >= .7: arm_rate = '9'
-        if range_check >= 8.3: range_rate = '5'
+        if year >= 1910: threshold = .995
+        else: threshold = .994
     elif pos == '2B':
-        if ((year >= 1930) and (pct >= 984) or
-            (year < 1920) and (pct >= 978)):
-            sup_rate = 'S'
-        if arm_check >= 2.8: arm_rate = '9'
-        if range_check >= 2.1: range_rate = '5'
+        if year >= 1930: threshold = .984
+        elif year >= 1920: threshold = .980
+        else: threshold = .978
     elif pos == '3B':
-        if ((year >= 1920) and (pct >= 971) or
-            (1920 > year >= 1910) and (pct >= 967) or
-            (year < 1910) and (pct >= 960)):
-            sup_rate = 'S'
-        if arm_check >= 2: arm_rate = '9'
-        if range_check >= .8: range_rate = '5'
+        if year >= 1920: threshold = .971
+        elif year >= 1910: threshold = .967
+        else: threshold = .960
     elif pos == 'SS':
-        if ((year >= 1930) and (pct >= 973) or
-            (1930 > year >= 1920) and (pct >= 968) or
-            (1920 > year >= 1910) and (pct >= 960) or
-            (year < 1910) and (pct >= 945)):
-            sup_rate = 'S'
-        if arm_check >= 2.8: arm_rate = '9'
-        if range_check >= 1.6: range_rate = '5'
+        if year >= 1930: threshold = .973
+        elif year >= 1920: threshold = .968
+        elif year >= 1910: threshold = .960
+        else: threshold = .945
     elif pos == 'LF':
-        if ((year >= 1920) and (pct >= 990) or
-            (1920 > year >= 1910) and (pct >= 987) or
-            (year < 1910) and (pct >= 977)):
-            sup_rate = 'S'
-        if arm_check >= .08: arm_rate = '9'
-        if range_check >= 2.1: range_rate = '5'
+        if year >= 1920: threshold = .990
+        elif year >= 1910: threshold = .987
+        else: threshold = .977
     elif pos == 'CF':
-        if ((year >= 1920) and (pct >= 990) or
-            (1920 > year >= 1910) and (pct >= 988) or
-            (year < 1910) and (pct >= 986)):
-            sup_rate = 'S'
-        if arm_check >= .08: arm_rate = '9'
-        if range_check >= 2.1: range_rate = '5'
-    elif pos == 'RF' or pos == 'of':
-        if ((year >= 1910) and (pct >= 990) or
-            (year < 1010) and (pct >= 979)):
-            sup_rate = 'S'
-        if arm_check >= .08: arm_rate = '9'
-        if range_check >= 2.1: range_rate = '5'
-    elif pos == 'OF' or pos == 'of':
-        if ((year >= 1910) and (pct >= 990) or
-            (year < 1010) and (pct >= 979)):
-            sup_rate = 'S'
-        if arm_check >= .08: arm_rate = '9'
-        if range_check >= 2.1: range_rate = '5'
-    if pos == 'dh':
-        arm_rate, range_rate = 'D', 'H'
+        if year >= 1920: threshold = .990
+        elif year >= 1910: threshold = .988
+        else: threshold = .986
+    elif pos == 'RF':
+        if year >= 1910: threshold = .990
+        else: threshold = .979
 
-    return sup_rate + arm_rate + range_rate + catch_arm
+    if pct >= threshold:
+        return 'S'
+    return ''
+
+def def_rating(pos, a, po, gap):
+    pos = pos.upper().strip()
+    arm_rate, range_rate = '8', '4'
+
+    arm_check = round(a / gap, 2) if gap else 0
+    range_check = round(po / gap, 1) if gap else 0
+
+    if pos == 'P':
+        if arm_check >= 0.7:
+            arm_rate = '9'
+        if range_check >= 0.3:
+            range_rate = '5'
+
+    elif pos == 'C':
+        arm_rate = '9'  # All catchers get 9
+        range_rate = '4'  # As specified
+
+    elif pos == '1B':
+        if arm_check >= 0.7:
+            arm_rate = '9'
+        if range_check >= 8.3:
+            range_rate = '5'
+
+    elif pos == '2B':
+        if arm_check >= 2.8:
+            arm_rate = '9'
+        if range_check >= 2.1:
+            range_rate = '5'
+
+    elif pos == '3B':
+        if arm_check >= 2.0:
+            arm_rate = '9'
+        if range_check >= 0.8:
+            range_rate = '5'
+
+    elif pos == 'SS':
+        if arm_check >= 2.8:
+            arm_rate = '9'
+        if range_check >= 1.6:
+            range_rate = '5'
+
+    elif pos in ['LF', 'CF', 'RF', 'OF']:  # Handle any outfield label
+        if arm_check >= 0.08:
+            arm_rate = '9'
+        if range_check >= 2.1:
+            range_rate = '5'
+
+    elif pos == 'DH':
+        arm_rate = ''
+        range_rate = ''
+
+    return arm_rate + range_rate
+
+def get_catcher_throw_rating(cs, sb):
+    attempts = sb + cs
+    if attempts == 0:
+        return ''  # No rating if no attempts
+
+    cs_pct = round(cs / attempts, 3)
+
+    if cs_pct >= 0.50:
+        return '-4'
+    elif cs_pct >= 0.41:
+        return '-3'
+    elif cs_pct >= 0.31:
+        return '-2'
+    elif cs_pct >= 0.21:
+        return '-1'
+    else:
+        return ''

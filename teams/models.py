@@ -14,6 +14,9 @@ class Teams(models.Model):
     lineup4_serial = models.ForeignKey('teams.Lineups', on_delete=models.CASCADE, related_name='teams_lu4', null=True, blank=True)
     lineup5_serial = models.ForeignKey('teams.Lineups', on_delete=models.CASCADE, related_name='teams_lu5', null=True, blank=True)
 
+    def __str__(self):
+        return f"{self.first_name} {self.team_name}"
+
     @property
     def id(self):
         return self.serial

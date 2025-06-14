@@ -12,8 +12,16 @@
                 <div class="col-sm-12">
                     <h2>Search Career Players</h2>
                     <form method="get" class="form-inline mb-3 d-flex flex-wrap align-items-end">
-                        <input type="text" name="first_name" class="form-control me-2" placeholder="First Name" value="{{ first_name }}" required>
-                        <input type="text" name="last_name" class="form-control me-2" placeholder="Last Name" value="{{ last_name }}" required>
+                        <input type="text" name="first_name" class="form-control me-2" placeholder="First Name" value="{{ first_name }}"
+                        autocorrect="off"
+                        autocapitalize="off"
+                        spellcheck="false"
+                        autocomplete="off">
+                        <input type="text" name="last_name" class="form-control me-2" placeholder="Last Name" value="{{ last_name }}"
+                        autocorrect="off"
+                        autocapitalize="off"
+                        spellcheck="false"
+                        autocomplete="off" required>
                         <button type="submit" class="btn btn-primary">Search</button>
                         <a href="{% url 'menu:home' %}" class="btn btn-primary" style="margin-left: 40px;">Return to Main Menu</a>
                     </form>

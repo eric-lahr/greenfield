@@ -14,9 +14,10 @@ from greenfield.utils.sherco import (
     speed, batter_bb_k, probable_hit_number,
     pitch_letter, innings_of_effectiveness,
     pitcher_bb_k_hbp, wild_pitch, gopher,
-    pitcher_control_number, def_rating
+    pitcher_control_number, def_rating,
+    get_superior_rating, get_catcher_throw_rating
 )
-from greenfield.utils.all_time import all_time_team_finder
+from greenfield.utils.all_time import all_time_team_finder, get_franchise_display_map
 from .models import Players, Position, PlayerPositionRating  # Your Greenfield models
 from teams.models import Teams
 from django.db.models import Q
@@ -78,65 +79,82 @@ def search_career_players(request):
     players = []
     first_name = last_name = ""
 
-    if request.method == "GET" and request.GET.get("first_name") and request.GET.get("last_name"):
-        first_name = request.GET.get("first_name").strip().lower()
-        last_name = request.GET.get("last_name").strip().lower()
+    if request.method == "GET":
+        first_name = request.GET.get("first_name", "").strip()
+        last_name = request.GET.get("last_name", "").strip()
 
-        conn = get_lahman_connection()
-        cursor = conn.cursor()
+        if first_name or last_name:
+            conn = get_lahman_connection()
+            cursor = conn.cursor()
 
-        query = """
-            SELECT p.playerID, p.nameFirst, p.nameLast, p.nameGiven,
-                MIN(stats.yearID) AS first_year,
-                MAX(stats.yearID) AS last_year,
+            # Base query
+            query = """
+                SELECT p.playerID, p.nameFirst, p.nameLast, p.nameGiven,
+                    MIN(stats.yearID) AS first_year,
+                    MAX(stats.yearID) AS last_year,
 
-                -- Primary Team
-                (
-                    SELECT t.name
-                    FROM (
-                        SELECT teamID, SUM(G) as total_games
+                    (
+                        SELECT t.name
                         FROM (
-                            SELECT teamID, G FROM Batting WHERE playerID = p.playerID
-                            UNION ALL
-                            SELECT teamID, G FROM Pitching WHERE playerID = p.playerID
-                            UNION ALL
-                            SELECT teamID, G FROM Fielding WHERE playerID = p.playerID
-                        ) AS appearances
-                        GROUP BY teamID
-                        ORDER BY total_games DESC
+                            SELECT teamID, SUM(G) as total_games
+                            FROM (
+                                SELECT teamID, G FROM Batting WHERE playerID = p.playerID
+                                UNION ALL
+                                SELECT teamID, G FROM Pitching WHERE playerID = p.playerID
+                                UNION ALL
+                                SELECT teamID, G FROM Fielding WHERE playerID = p.playerID
+                            ) AS appearances
+                            GROUP BY teamID
+                            ORDER BY total_games DESC
+                            LIMIT 1
+                        ) AS top_team
+                        JOIN Teams t ON t.teamID = top_team.teamID
+                        ORDER BY t.yearID DESC
                         LIMIT 1
-                    ) AS top_team
-                    JOIN Teams t ON t.teamID = top_team.teamID
-                    ORDER BY t.yearID DESC
-                    LIMIT 1
-                ) AS primary_team,
+                    ) AS primary_team,
 
-                -- Primary Position
-                (
-                    SELECT POS
-                    FROM Fielding f
-                    WHERE f.playerID = p.playerID
-                    GROUP BY POS
-                    ORDER BY SUM(G) DESC
-                    LIMIT 1
-                ) AS primary_position
+                    (
+                        SELECT POS
+                        FROM Fielding f
+                        WHERE f.playerID = p.playerID
+                        GROUP BY POS
+                        ORDER BY SUM(G) DESC
+                        LIMIT 1
+                    ) AS primary_position
 
-            FROM People p
-            JOIN (
-                SELECT playerID, yearID FROM Batting
-                UNION
-                SELECT playerID, yearID FROM Pitching
-                UNION
-                SELECT playerID, yearID FROM Fielding
-            ) stats USING(playerID)
-            WHERE LOWER(p.nameFirst) = %s AND LOWER(p.nameLast) = %s
-            GROUP BY p.playerID, p.nameFirst, p.nameLast, p.nameGiven
-            ORDER BY p.nameGiven
-        """
+                FROM People p
+                JOIN (
+                    SELECT playerID, yearID FROM Batting
+                    UNION
+                    SELECT playerID, yearID FROM Pitching
+                    UNION
+                    SELECT playerID, yearID FROM Fielding
+                ) stats USING(playerID)
+            """
 
-        cursor.execute(query, (first_name, last_name))
-        players = cursor.fetchall()
-        conn.close()
+            # WHERE clause and params
+            where_clauses = []
+            params = []
+
+            if first_name:
+                where_clauses.append("LOWER(p.nameFirst) ILIKE %s")
+                params.append(f"%{first_name.lower()}%")
+
+            if last_name:
+                where_clauses.append("LOWER(p.nameLast) ILIKE %s")
+                params.append(f"%{last_name.lower()}%")
+
+            if where_clauses:
+                query += " WHERE " + " AND ".join(where_clauses)
+
+            query += """
+                GROUP BY p.playerID, p.nameFirst, p.nameLast, p.nameGiven
+                ORDER BY p.nameGiven
+            """
+
+            cursor.execute(query, params)
+            players = cursor.fetchall()
+            conn.close()
 
     return render(request, "players/career_search.html", {
         "players": players,
@@ -201,6 +219,7 @@ def rate_player_career(request, player_id):
                 WHERE playerID = %s
                 GROUP BY POS
                 HAVING SUM(G) >= 6
+                ORDER BY SUM(G) DESC
             """, (player_id,))
             fielding = cursor.fetchall()
 
@@ -226,6 +245,7 @@ def rate_player_career(request, player_id):
                     WHERE playerID = %s
                     GROUP BY POS
                     HAVING SUM(G) >= 15
+                    ORDER BY SUM(G) DESC
                 """, (player_id,))
                 of_splits = cursor.fetchall()
 
@@ -233,37 +253,46 @@ def rate_player_career(request, player_id):
                 fielding = non_of_stats + of_splits
             else:
                 fielding = non_of_stats + of_stats
+            fielding.sort(key=lambda row: row[4], reverse=True)
 
             # Get top franchise by appearances
             cursor.execute("""
-                SELECT teamID, SUM(G) AS total_games
+                SELECT franchID, SUM(games) as total_games
                 FROM (
-                    SELECT teamID, G FROM Batting WHERE playerID = %s
+                    SELECT t.franchID, b.G AS games
+                    FROM Batting b
+                    JOIN Teams t ON b.teamID = t.teamID AND b.yearID = t.yearID
+                    WHERE b.playerID = %s
+
                     UNION ALL
-                    SELECT teamID, G FROM Pitching WHERE playerID = %s
+
+                    SELECT t.franchID, p.G AS games
+                    FROM Pitching p
+                    JOIN Teams t ON p.teamID = t.teamID AND p.yearID = t.yearID
+                    WHERE p.playerID = %s
+
                     UNION ALL
-                    SELECT teamID, G FROM Fielding WHERE playerID = %s
+
+                    SELECT t.franchID, f.G AS games
+                    FROM Fielding f
+                    JOIN Teams t ON f.teamID = t.teamID AND f.yearID = t.yearID
+                    WHERE f.playerID = %s
                 ) AS combined
-                GROUP BY teamID
+                GROUP BY franchID
                 ORDER BY total_games DESC
                 LIMIT 1
             """, (player_id, player_id, player_id))
-            top_team = cursor.fetchone()
-            team_id = top_team[0] if top_team else 'UNK'
 
-            cursor.execute("""
-                SELECT f.franchName
-                FROM Teams t
-                JOIN TeamsFranchises f ON t.franchID = f.franchID
-                WHERE t.teamID = %s
-                ORDER BY t.yearID DESC
-                LIMIT 1
-            """, (team_id,))
-            team_row = cursor.fetchone()
-            team_name = team_row[0] if team_row else "Unknown Team"
-            fran_name = all_time_team_finder(team_name, greenfield_dict['debut_year'])
-            greenfield_dict['team_name'] = fran_name
-            print(team_name)
+            top_team = cursor.fetchone()
+            
+            print(f"Top franchise: {top_team}")
+
+            franchise_id = top_team[0] if top_team else 'UNK'
+            display_map = get_franchise_display_map()
+            franchise_display = display_map.get(franchise_id, "Unknown Team")
+
+            greenfield_dict['team_name'] = franchise_display
+            print(f"Final franchise name: {franchise_display}")
 
     # --- Sherco Ratings Calculations ---
 
@@ -323,8 +352,8 @@ def rate_player_career(request, player_id):
     pitching_stats = {
         'BF': pitching[0],
         'HA': pitching[1],
-        'BB': pitching[2],
-        'HBP': pitching[3],
+        'BB': pitching[2] if pitching[2] is not None else 0,
+        'HBP': pitching[3] if pitching[3] is not None else 0,
         'G': pitching[6],
         'IPOuts': pitching[7],
         'SO': pitching[8],
@@ -375,8 +404,10 @@ def rate_player_career(request, player_id):
         successes = po + a
         chances = po + a + e
         fpct = round(successes / chances, 3) if chances > 0 else 0.000
-        dr = def_rating(pos, fpct, 9999, a, po, g, cs_total, sba_total)
-        position_dict[pos] = dr
+        superior =  get_superior_rating(pos, fpct, greenfield_dict['debut_year'])
+        dr = def_rating(pos, a, po, g)
+        cr = get_catcher_throw_rating(cs_total, sba_total)
+        position_dict[pos] = superior + dr + cr
 
     greenfield_dict['positions'] = position_dict
     request.session['greenfield_data'] = greenfield_dict
@@ -384,7 +415,7 @@ def rate_player_career(request, player_id):
     context = {
         'playerID': player_id,
         'year': 'All Time',
-        'team_name': team_name,
+        'team_name': franchise_display,
         'batting': batting,
         'pitching': pitching,
         'fielding': fielding,
@@ -454,6 +485,7 @@ def rate_player(request, playerID, year, team_name):
                 WHERE playerID = %s AND yearID = %s
                 GROUP BY POS
                 HAVING SUM(G) >= 6
+                ORDER BY SUM(G) DESC
             """, (playerID, year))
             fielding = cursor.fetchall()
             # field ex. = [('2B', 160, 206, 14), ('3B', 12, 26, 5), ('OF', 21, 1, 2)]
@@ -480,6 +512,7 @@ def rate_player(request, playerID, year, team_name):
                     WHERE playerID = %s AND yearID = %s
                     GROUP BY POS
                     HAVING SUM(G) >= 15
+                    ORDER BY SUM(G) DESC
                 """, (playerID, year))
                 of_splits = cursor.fetchall()
 
@@ -487,6 +520,7 @@ def rate_player(request, playerID, year, team_name):
                 fielding = non_of_stats + of_splits
             else:
                 fieldimng = non_of_stats + of_stats
+            fielding.sort(key=lambda row: row[4], reverse=True)
 
     batting_stats = {
         'G': batting[10],
@@ -596,13 +630,10 @@ def rate_player(request, playerID, year, team_name):
         fpct = round(successes / chances, 3) if chances > 0 else 0.000
         fielding_stats['PCT'] = fpct
 
-        dr = def_rating(
-            fielding_stats['POS'], fielding_stats['PCT'], int(year),
-            fielding_stats['A'], fielding_stats['PO'], fielding_stats['G'],
-            fielding_stats['CS'], fielding_stats['SBA']
-        )
-
-        position_dict[position] = dr
+        superior =  get_superior_rating(position, fpct, int(year))
+        dr = def_rating(position, a, po, g)
+        cr = get_catcher_throw_rating(cs_total, sba_total)
+        position_dict['pos'] = superior + dr + cr
 
     greenfield_dict['positions'] = position_dict
     request.session['greenfield_data'] = greenfield_dict
