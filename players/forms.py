@@ -1,6 +1,6 @@
 from django import forms
 from .models import Players, PlayerPositionRating, Position
-from django.forms import formset_factory
+from django.forms import formset_factory, modelformset_factory
 
 class PlayerForm(forms.ModelForm):
     class Meta:
@@ -20,3 +20,19 @@ PlayerPositionRatingFormSet = formset_factory(
     extra=0,
     can_delete=True
 )
+
+PlayerPositionRatingModelFormset = modelformset_factory(
+    PlayerPositionRating,
+    form=PlayerPositionRatingForm,
+    extra=0,
+    can_delete=True
+)
+
+class PlayerEditForm(forms.ModelForm):
+    class Meta:
+        model = Players
+        fields = [
+            'year', 'first_name', 'last_name', 'bats', 'throws', 'uni_num',
+            'offense', 'bat_prob_hit', 'pitching', 'pitch_ctl', 'pitch_prob_hit', 'team_serial'
+        ]
+

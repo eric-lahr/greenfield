@@ -1,0 +1,20 @@
+<h2>Select Team</h2>
+<form method="get">
+  <select name="team_id" onchange="this.form.submit()">
+    <option value="">-- Choose a team --</option>
+    {% for team in teams %}
+      <option value="{{ team.id }}" {% if team.id == selected_team_id %}selected{% endif %}>
+        {{ team.first_name }} {{ team.team_name }}
+      </option>
+    {% endfor %}
+  </select>
+</form>
+
+{% if players %}
+  <h3>Players</h3>
+  <ul>
+    {% for player in players %}
+      <li><a href="{% url 'players:edit_player' player.id %}">{{ player.first_name }} {{ player.last_name }}</a></li>
+    {% endfor %}
+  </ul>
+{% endif %}

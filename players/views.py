@@ -1,4 +1,4 @@
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
 from django.conf import settings
 from psycopg2.extras import RealDictCursor
@@ -22,7 +22,10 @@ from .models import Players, Position, PlayerPositionRating  # Your Greenfield m
 from teams.models import Teams
 from django.db.models import Q
 from django.contrib import messages
-from .forms import PlayerForm, PlayerPositionRatingFormSet
+from .forms import (
+    PlayerForm, PlayerPositionRatingFormSet, PlayerEditForm,
+    PlayerPositionRatingModelFormset
+)
 from django.forms import modelformset_factory
 from django.contrib import messages
 from django.db import transaction
@@ -654,8 +657,39 @@ def rate_player(request, playerID, year, team_name):
     }
     return render(request, 'players/rate_player.html', context)
 
-def edit_players(request):
-    return render(request, 'players/edit_player.html')
+def select_team_for_edit(request):
+    teams = Teams.objects.all().order_by('first_name', 'team_name')
+    selected_team_id = request.GET.get('team_id')
+    players = []
+    if selected_team_id:
+        players = Players.objects.filter(team_serial_id=selected_team_id).order_by('last_name', 'first_name')
+    return render(request, 'players/select_team_for_edit.html', {
+        'teams': teams,
+        'players': players,
+        'selected_team_id': int(selected_team_id) if selected_team_id else None,
+    })
+
+def edit_player(request, player_id):
+    player = get_object_or_404(Players, pk=player_id)
+    position_ratings = PlayerPositionRating.objects.filter(player=player)
+
+    if request.method == 'POST':
+        player_form = PlayerEditForm(request.POST, instance=player)
+        formset = PlayerPositionRatingModelFormset(request.POST, queryset=position_ratings)
+
+        if player_form.is_valid() and formset.is_valid():
+            player_form.save()
+            formset.save()
+            return redirect('players:select_team_for_edit')
+    else:
+        player_form = PlayerEditForm(instance=player)
+        formset = PlayerPositionRatingModelFormset(queryset=position_ratings)
+
+    return render(request, 'players/edit_player.html', {
+        'player_form': player_form,
+        'formset': formset,
+        'player': player
+    })
 
 def create_record(request):
     if request.method == 'POST' and 'confirm_save' in request.POST:
