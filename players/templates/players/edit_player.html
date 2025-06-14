@@ -24,3 +24,11 @@
 
     <button type="submit" class="btn btn-primary">Save Changes</button>
 </form>
+<form method="post"
+      action="{% url 'players:delete_player' player.serial %}?year={{ player.year }}&team_name={{ player.team_serial.team_name }}"
+      onsubmit="return confirm('Are you sure you want to delete this player?');">
+    {% csrf_token %}
+    <button type="submit" class="btn btn-danger">Delete Player</button>
+</form>
+
+

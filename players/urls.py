@@ -12,4 +12,5 @@ urlpatterns = [
     path('create_record/', views.create_record, name='create_record'),
     path('edit/', views.select_team_for_edit, name='select_team_for_edit'),
     path('edit/<int:player_id>/', views.edit_player, name='edit_player'),
+    path('delete/<int:player_id>/', views.delete_player, name='delete_player'),
 ]

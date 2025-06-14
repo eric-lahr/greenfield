@@ -1,6 +1,7 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
 from django.conf import settings
+from collections import OrderedDict
 from psycopg2.extras import RealDictCursor
 from greenfield.utils.lahman_db import (
     get_players_by_team_and_year,
@@ -402,17 +403,21 @@ def rate_player_career(request, player_id):
     })
 
     # Fielding ratings
-    position_dict = {}
+    position_ratings = []
     for pos, po, a, e, g in fielding:
         successes = po + a
         chances = po + a + e
         fpct = round(successes / chances, 3) if chances > 0 else 0.000
-        superior =  get_superior_rating(pos, fpct, greenfield_dict['debut_year'])
+        superior = get_superior_rating(pos, fpct, greenfield_dict['debut_year'])
         dr = def_rating(pos, a, po, g)
         cr = get_catcher_throw_rating(cs_total, sba_total)
-        position_dict[pos] = superior + dr + cr
+        position_ratings.append((pos, g, superior + dr + cr))
 
-    greenfield_dict['positions'] = position_dict
+    # Sort by descending games played, then store in ordered dict
+    position_ratings.sort(key=lambda x: x[1], reverse=True)
+    ordered_position_dict = OrderedDict((pos, rating) for pos, g, rating in position_ratings)
+
+    greenfield_dict['positions'] = ordered_position_dict
     request.session['greenfield_data'] = greenfield_dict
 
     context = {
@@ -691,6 +696,27 @@ def edit_player(request, player_id):
         'player': player
     })
 
+def delete_player(request, player_id):
+    player = get_object_or_404(Players, pk=player_id)
+
+    if request.method == 'POST':
+        player_name = f"{player.first_name} {player.last_name} ({player.year})"
+        player.delete()
+        messages.success(request, f"{player_name} has been deleted.")
+
+        year = request.GET.get('year', '')
+        team_name = request.GET.get('team_name', '')
+
+        if year and team_name:
+            params = urlencode({'year': year, 'team_name': team_name})
+            return redirect(f"{reverse('players:create_players_from_team')}?{params}")
+        else:
+            return redirect('players:search_career_players')
+
+    return render(request, 'players/confirm_delete.html', {
+        'player': player
+    })
+
 def create_record(request):
     if request.method == 'POST' and 'confirm_save' in request.POST:
         # 🔁 Load fallback from session FIRST
@@ -739,12 +765,13 @@ def create_record(request):
                 player.team_serial = team  # ✅ link by object (Django knows to use PK)
                 player.save()
 
-                for form in rating_formset:
+                for idx, form in enumerate(rating_formset):
                     if form.cleaned_data and not form.cleaned_data.get('DELETE', False):
                         PlayerPositionRating.objects.create(
                             player=player,
                             position=form.cleaned_data['position'],
-                            rating=form.cleaned_data['rating']
+                            rating=form.cleaned_data['rating'],
+                            position_order=idx  # 👈 assign order explicitly
                         )
 
                 messages.success(request, "Player and position ratings saved successfully.")

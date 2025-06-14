@@ -34,12 +34,15 @@ class PlayerPositionRating(models.Model):
     player = models.ForeignKey(Players, on_delete=models.CASCADE, related_name='position_ratings')
     position = models.ForeignKey(Position, on_delete=models.CASCADE)
     rating = models.CharField(max_length=10)
+    position_order = models.PositiveIntegerField(default=0)  # New field for ordering
 
     class Meta:
         unique_together = ('player', 'position')
+        ordering = ['position_order']  # ⚠️ This enforces order at the query level
 
     def __str__(self):
         return f"{self.player} - {self.position.name}: {self.rating}"
+
 
 class PlayerPicture(models.Model):
 
