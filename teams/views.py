@@ -1,7 +1,7 @@
 from django.shortcuts import render, get_object_or_404
 from .models import Teams
 from players.models import Players, PlayerPositionRating
-from django.db.models import Case, When, Value, IntegerField
+from django.db.models import Case, When, Value, IntegerField, Prefetch
 from django.http import HttpResponse
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
@@ -20,21 +20,21 @@ def view_teams(request):
     player_ratings = {}
 
     if selected_team_id:
-        # Step 1: Get players normally
         players = list(Players.objects.filter(team_serial_id=selected_team_id))
 
-        # Step 2: Get ratings and tag each player with a flag for "is_pitcher"
         for player in players:
+            # 🔁 ORDER ratings by custom 'position_order'
             ratings = (
-                PlayerPositionRating.objects.filter(player=player)
+                player.position_ratings.all()
                 .select_related('position')
             )
             player_ratings[player.id] = ratings
+
             player.is_pitcher = any(
                 r.position.name == 'P' for r in ratings if r.position
             )
 
-        # Step 3: Sort players: non-pitchers first, then pitchers
+        # Sort: non-pitchers first, then pitchers
         players.sort(key=lambda p: (p.is_pitcher, p.last_name, p.first_name))
 
     return render(request, 'teams/view_teams.html', {

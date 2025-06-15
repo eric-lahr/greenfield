@@ -75,7 +75,8 @@ def batter_bb_k(bb, so, hbp, pa):
         if walk_check <= 0: walk_num, walk_check = 'n', 0
         else: walk_num = sorted(numbers)[walk_check]
     k_check = round((so / pa) * 36)
-    k_num = sorted(numbers)[walk_check + k_check]
+    if k_check == 36: k_num = '66'
+    else: k_num = sorted(numbers)[walk_check + k_check]
     hbp_check = math.ceil((hbp / pa) * 36)
 
     if hbp_check:
