@@ -6,6 +6,7 @@ from django.http import HttpResponse
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 from reportlab.lib.units import inch
+from greenfield.utils.sherco import parse_pitching_sort_key, get_primary_position_order
 
 def create_team(request):
     return render(request, 'teams/create_team.html')
@@ -34,8 +35,16 @@ def view_teams(request):
                 r.position.name == 'P' for r in ratings if r.position
             )
 
-        # Sort: non-pitchers first, then pitchers
-        players.sort(key=lambda p: (p.is_pitcher, p.last_name, p.first_name))
+        # Separate and sort batters/pitchers
+        batters = [p for p in players if not p.is_pitcher]
+        pitchers = [p for p in players if p.is_pitcher]
+
+        # Sort batters alphabetically
+        batters.sort(key=lambda p: (get_primary_position_order(p), p.last_name, p.first_name))
+        pitchers.sort(key=lambda p: parse_pitching_sort_key(p.pitching))
+
+        # Merge
+        players = batters + pitchers
 
     return render(request, 'teams/view_teams.html', {
         'teams': teams,
@@ -49,14 +58,21 @@ def create_team_pdf(request, team_serial):
     players = list(Players.objects.filter(team_serial_id=team_serial))
     player_ratings = {}
 
-    # Collect ratings and identify pitchers
     for player in players:
         ratings = PlayerPositionRating.objects.filter(player=player).select_related('position')
         player_ratings[player.id] = ratings
+        player.ratings = ratings  # attach ratings for sorting
         player.is_pitcher = any(r.position.name == 'P' for r in ratings if r.position)
+        player.primary_position = get_primary_position(ratings)
 
-    # Sort players: non-pitchers first, then pitchers
-    players.sort(key=lambda p: (p.is_pitcher, p.last_name, p.first_name))
+    # Sort batters and pitchers separately, using shared utils
+    pitchers = [p for p in players if p.is_pitcher]
+    batters = [p for p in players if not p.is_pitcher]
+
+    pitchers.sort(key=lambda p: parse_pitching_sort(p.pitching))
+    batters.sort(key=lambda p: (p.primary_position, p.last_name, p.first_name))
+
+    players = batters + pitchers  # final sorted list
 
     # Setup PDF
     response = HttpResponse(content_type='application/pdf')
@@ -65,7 +81,7 @@ def create_team_pdf(request, team_serial):
     width, height = letter
 
     # Title/Header
-    margin = 50
+    margin = 40
     y_start = height - 50
     p.setFont("Helvetica-Bold", 14)
     p.drawString(margin, y_start, f"Team: {team.team_name} ({team.first_name})")
@@ -73,13 +89,14 @@ def create_team_pdf(request, team_serial):
 
     # Table headers
     p.setFont("Helvetica-Bold", 10)
-    headers = ["Name", "Bats", "Throws", "Offense", "Positions", "Pitching"]
-    col_widths = [1.5 * inch, 0.7 * inch, 0.7 * inch, 1.7 * inch, 1.4 * inch, 0.9 * inch]
+    headers = ["Name", "B-T", "Role", "Ratings"]
+    col_widths = [2.3 * inch, 1.1 * inch, 1.1 * inch, 3.3 * inch]
     x_positions = [margin]
     for width in col_widths[:-1]:
         x_positions.append(x_positions[-1] + width)
 
-    y = y_start
+    # Draw headers
+    p.setFont("Helvetica-Bold", 10)
     for i, header in enumerate(headers):
         p.drawString(x_positions[i], y, header)
     y -= 15
@@ -89,7 +106,7 @@ def create_team_pdf(request, team_serial):
     # Table content
     p.setFont("Helvetica", 9)
     for player in players:
-        if y < 50:  # New page if too low (we try to keep it one page but safe fallback)
+        if y < 50:
             p.showPage()
             y = height - 50
             p.setFont("Helvetica-Bold", 14)
@@ -104,17 +121,28 @@ def create_team_pdf(request, team_serial):
             p.setFont("Helvetica", 9)
 
         name = f"{player.first_name} {player.last_name}"
-        positions = ", ".join([f"{r.position.name}: {r.rating}" for r in player_ratings[player.id]])
-        pitching = player.pitching if (hasattr(player, 'pitching') and player.pitching is not None) else ""
+        hand = f"{player.bats}-{player.throws}"
+        role = "Pitcher" if player.is_pitcher else "Batter"
+        
+        ratings_parts = []
 
-        row_data = [
-            name,
-            player.bats,
-            player.throws,
-            player.offense,
-            positions,
-            pitching
-        ]
+        if player.is_pitcher:
+            if player.pitching:
+                ratings_parts.append(player.pitching)
+            if player.pitch_ctl is not None:
+                ratings_parts.append(f"PCN-{player.pitch_ctl}")
+            if player.pitch_prob_hit is not None:
+                ratings_parts.append(f"PPH-{player.pitch_prob_hit}")
+
+        # Always include offense/PH, even for pitchers
+        if player.offense:
+            ratings_parts.insert(0, player.offense)
+        if player.bat_prob_hit is not None:
+            ratings_parts.insert(1, f"PH-{player.bat_prob_hit}")
+
+        ratings = " ".join(ratings_parts)
+
+        row_data = [name, hand, role, ratings]
         for i, value in enumerate(row_data):
             p.drawString(x_positions[i], y, str(value))
         y -= 15

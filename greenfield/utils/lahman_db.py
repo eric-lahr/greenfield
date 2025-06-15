@@ -2,7 +2,7 @@
 
 import psycopg2
 from psycopg2.extras import RealDictCursor
-from players.models import Players
+from players.models import Players, PlayerPositionRating, Position
 from teams.models import Teams
 
 def get_lahman_connection():

@@ -53,37 +53,29 @@
         <thead>
           <tr>
             <th>Name</th>
-            <th>Year</th>
-            <th>Bats</th>
-            <th>Throws</th>
-            <th>Offense</th>
-            <th style="min-width: 160px;">Defense</th>
-            <th style="min-width: 120px;">Pitching</th>
+            <th>B-T</th>
+            <th>Role</th>
+            <th>Ratings</th>
           </tr>
-        </thead>
+        </thead>        
         <tbody>
           {% for player in players %}
             <tr>
               <td>{{ player.first_name }} {{ player.last_name }}</td>
-              <td>{{ player.year }}</td>
-              <td>{{ player.bats }}</td>
-              <td>{{ player.throws }}</td>
-              <td>{{ player.offense }}</td>
+              <td>{{ player.bats }}-{{ player.throws }}</td>
+              <td>{% if player.is_pitcher %}Pitcher{% else %}Batter{% endif %}</td>
               <td>
-                {% for rating in player_ratings|get:player.id %}
-                  {{ rating.position.name }}: {{ rating.rating }}{% if not forloop.last %}, {% endif %}
-                {% empty %}
-                  <i>No positions</i>
-                {% endfor %}
-              </td>
-              <td>
-                {% if player.pitching %}
-                  {{ player.pitching }}
+                {% if player.offense %}{{ player.offense }} {% endif %}
+                {% if player.bat_prob_hit %}PH-{{ player.bat_prob_hit }} {% endif %}
+                {% if player.is_pitcher %}
+                  {% if player.pitching %}{{ player.pitching }} {% endif %}
+                  {% if player.pitch_ctl %}PCN-{{ player.pitch_ctl }} {% endif %}
+                  {% if player.pitch_prob_hit %}PPH-{{ player.pitch_prob_hit }}{% endif %}
                 {% endif %}
               </td>
             </tr>
           {% endfor %}
-        </tbody>
+        </tbody>              
       </table>
     {% endif %}
   </div>

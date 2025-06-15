@@ -1,4 +1,4 @@
-import math
+import math, re
 
 numbers = {
     11,12,13,14,15,16,
@@ -290,3 +290,28 @@ def get_catcher_throw_rating(cs, sb):
         return '-1'
     else:
         return ''
+
+
+POSITION_ORDER = {
+    'C': 1, '1B': 2, '2B': 3, '3B': 4, 'SS': 5,
+    'LF': 6, 'CF': 7, 'RF': 8, 'OF': 9, 'DH': 10
+}
+
+def get_primary_position_order(player):
+    ratings = player.position_ratings.all().select_related('position')
+    sorted_ratings = sorted(ratings, key=lambda r: r.position_order if r.position_order is not None else 999)
+    if sorted_ratings:
+        pos_name = sorted_ratings[0].position.name
+        return POSITION_ORDER.get(pos_name, 99)
+    return 99
+
+def parse_pitching_sort_key(pitching_str):
+    if not pitching_str:
+        return (-1, '')
+    prefix = pitching_str.split(' ')[0]
+    match = re.match(r'[^A-Z]*([A-Z])(\d+)', prefix)
+    if match:
+        letter = match.group(1)
+        number = int(match.group(2))
+        return (-number, letter)
+    return (-1, '')
