@@ -315,3 +315,9 @@ def parse_pitching_sort_key(pitching_str):
         number = int(match.group(2))
         return (-number, letter)
     return (-1, '')
+
+def get_primary_position(ratings):
+    sorted_ratings = sorted(ratings, key=lambda r: r.position_order if r.position_order is not None else 999)
+    if sorted_ratings:
+        return sorted_ratings[0].position.name
+    return "N/A"
