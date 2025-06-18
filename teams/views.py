@@ -10,7 +10,10 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.units import inch
 from reportlab.platypus import Table, TableStyle, Paragraph, SimpleDocTemplate, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
-from greenfield.utils.sherco import parse_pitching_sort_key, get_primary_position_order, get_primary_position
+from greenfield.utils.sherco import (
+    parse_pitching_sort_key, get_primary_position_order, get_primary_position,
+    get_defense_string, get_pitching_string, get_pitching_string
+    )
 
 def create_team(request):
     return render(request, 'teams/create_team.html')
@@ -146,4 +149,132 @@ def new_create_pdf(request, team_serial):
     buffer.seek(0)
     response = HttpResponse(buffer.read(), content_type='application/pdf')
     response['Content-Disposition'] = f'attachment; filename="{team.team_name}_{team.first_name}_full.pdf"'
+    return response
+
+
+def create_pdf_batters(request, team_serial):
+    team = get_object_or_404(Teams, pk=team_serial)
+    players = list(Players.objects.filter(team_serial_id=team_serial))
+
+    for player in players:
+        ratings = PlayerPositionRating.objects.filter(player=player).select_related('position')
+        player.ratings = ratings
+        player.is_pitcher = any(r.position.name == 'P' for r in ratings if r.position)
+        player.primary_position = get_primary_position(ratings)
+
+    # Filter only batters
+    batters = [p for p in players if not p.is_pitcher]
+    batters.sort(key=lambda p: (get_primary_position_order(p), p.last_name, p.first_name))
+
+    buffer = BytesIO()
+    margin = 50
+    doc = SimpleDocTemplate(buffer, pagesize=letter, leftMargin=margin, rightMargin=margin, topMargin=60, bottomMargin=40)
+
+    styles = getSampleStyleSheet()
+    styleN = styles["Normal"]
+    styleN.fontSize = 9
+    styleN.leading = 11
+
+    elements = [Paragraph(f"Batters: {team.team_name} ({team.first_name})", styles["Title"]), Spacer(1, 12)]
+
+    headers = ["Name", "B-T", "Offense", "Defense"]
+    table_data = [headers]
+
+    for p in batters:
+        name = f"{p.first_name} {p.last_name}"
+        hand = f"{p.bats}-{p.throws}"
+        offense = f"{p.offense or ''} PH-{p.bat_prob_hit}" if p.bat_prob_hit else (p.offense or '')
+        defense = ', '.join(f"{r.position.name}: {r.rating}" for r in p.ratings if r.position)
+
+        row = [
+            Paragraph(name, styleN),
+            Paragraph(hand, styleN),
+            Paragraph(offense.strip(), styleN),
+            Paragraph(defense, styleN),
+        ]
+        table_data.append(row)
+
+    col_widths = [2.4 * inch, 0.6 * inch, 2.0 * inch, 2.2 * inch]
+
+    table = Table(table_data, colWidths=col_widths)
+    table.setStyle([
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 10),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.darkblue),
+        ('LINEBELOW', (0, 0), (-1, 0), 1, colors.black),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('GRID', (0, 0), (-1, -1), 0.25, colors.grey),
+    ])
+
+    elements.append(table)
+    doc.build(elements)
+
+    buffer.seek(0)
+    response = HttpResponse(buffer.read(), content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="{team.team_name}_{team.first_name}_batters.pdf"'
+    return response
+
+
+def create_pdf_pitchers(request, team_serial):
+    team = get_object_or_404(Teams, pk=team_serial)
+    players = list(Players.objects.filter(team_serial_id=team_serial))
+
+    for player in players:
+        ratings = PlayerPositionRating.objects.filter(player=player).select_related('position')
+        player.ratings = ratings
+        player.is_pitcher = any(r.position.name == 'P' for r in ratings if r.position)
+        player.primary_position = get_primary_position(ratings)
+        player.offense = player.offense or ''  # Ensure exists
+        player.defense = get_defense_string(ratings)
+        player.pitching = get_pitching_string(player)
+
+    pitchers = [p for p in players if p.is_pitcher]
+    pitchers.sort(key=lambda p: parse_pitching_sort_key(p.pitching))
+
+    response = HttpResponse(content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="{team.team_name}_{team.first_name}_pitchers.pdf"'
+    p = canvas.Canvas(response, pagesize=letter)
+    width, height = letter
+
+    margin = 40
+    y = height - 50
+    p.setFont("Helvetica-Bold", 14)
+    p.drawString(margin, y, f"Pitchers - {team.team_name} ({team.first_name})")
+    y -= 30
+
+    headers = ["Name", "B-T", "Offense", "Defense", "Pitching"]
+    col_widths = [1.6 * inch, 0.5 * inch, 2.0 * inch, 1.0 * inch, 2.5 * inch]
+    x_positions = [margin]
+    for width in col_widths[:-1]:
+        x_positions.append(x_positions[-1] + width)
+
+    p.setFont("Helvetica-Bold", 10)
+    for i, header in enumerate(headers):
+        p.drawString(x_positions[i], y, header)
+    y -= 15
+    p.setFont("Helvetica", 10)
+
+    for player in pitchers:
+        if y < 50:
+            p.showPage()
+            y = height - 50
+            p.setFont("Helvetica-Bold", 10)
+            for i, header in enumerate(headers):
+                p.drawString(x_positions[i], y, header)
+            y -= 15
+            p.setFont("Helvetica", 10)
+
+        data = [
+            f"{player.first_name} {player.last_name}",
+            f"{player.bats}-{player.throws}",
+            player.offense,
+            player.defense,
+            player.pitching,
+        ]
+        for i, val in enumerate(data):
+            p.drawString(x_positions[i], y, str(val))
+        y -= 15
+
+    p.save()
     return response

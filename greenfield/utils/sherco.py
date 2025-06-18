@@ -321,3 +321,20 @@ def get_primary_position(ratings):
     if sorted_ratings:
         return sorted_ratings[0].position.name
     return "N/A"
+
+def get_defense_string(ratings):
+    return ", ".join(
+        f"{r.position.name}: {r.rating}" for r in ratings if r.position and r.rating is not None
+    )
+
+def get_pitching_string(player):
+    if not player.pitching:
+        return ""
+    
+    parts = [f"{player.pitching}"]
+    if player.pitch_ctl is not None:
+        parts.append(f"CTL:{player.pitch_ctl}")
+    if player.pitch_prob_hit is not None:
+        parts.append(f"HIT:{player.pitch_prob_hit}")
+
+    return " | ".join(parts)
