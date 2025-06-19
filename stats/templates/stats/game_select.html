@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Select Game{% endblock %}
+
+{% block content %}
+  <div class="container mt-4">
+    <h2>Select a Game to Enter Lineups & Stats</h2>
+    <table class="table table-bordered">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Competition</th>
+          <th>Matchup</th>
+          <th>Score</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for game in games %}
+        <tr>
+          <td>{{ game.date_played }}</td>
+          <td>{{ game.competition.name }}</td>
+          <td>{{ game.away_team }} @ {{ game.home_team }}</td>
+          <td>{{ game.away_score }} - {{ game.home_score }}</td>
+          <td>
+            <a href="{% url 'stats:enter-lineups' game.pk %}" class="btn btn-sm btn-primary">Enter Lineups</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% endblock %}

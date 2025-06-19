@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Enter Lineups{% endblock %}
+
+{% block content %}
+{% load my_filters %}
+<div class="container mt-4">
+    <h2>Enter Lineups for {{ game.away_team }} @ {{ game.home_team }}</h2>
+    <form method="post">
+        {% csrf_token %}
+        
+        <h4>{{ game.away_team }}</h4>
+        {{ away_form.as_p }}
+
+        <h4 class="mt-4">{{ game.home_team }}</h4>
+        {{ home_form.as_p }}
+
+        <button type="submit" class="btn btn-success mt-3">Save Lineups</button>
+    </form>
+</div>
+{% endblock %}

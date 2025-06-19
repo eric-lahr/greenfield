@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Enter Game Result{% endblock %}
+
+{% block content %}
+{% load my_filters %}
+  <div class="container mt-4">
+    <h2>Enter Game Result</h2>
+    <form method="post">
+      {% csrf_token %}
+      {{ form.as_p }}
+      <button type="submit" class="btn btn-primary">Save Game</button>
+    </form>
+    <a href="{% url 'stats:competition-list' %}" class="btn btn-secondary mt-3">Back to Competitions</a>
+  </div>
+{% endblock %}

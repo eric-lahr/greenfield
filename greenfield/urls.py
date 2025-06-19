@@ -29,6 +29,6 @@ urlpatterns = [
     path('teams/', include('teams.urls')),
     # path('stadiums/', include('stadiums.urls')),
     # path('games/', include('games.urls')),
-    # path('stats/', include('stats.urls')),
+    path('stats/', include('stats.urls')),
     path('', RedirectView.as_view(url='menu/', permanent=True))
 ] + static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
