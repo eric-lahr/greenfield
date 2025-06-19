@@ -1,3 +1,7 @@
+{% extends "base.html" %}
+{% block title %}Career Player Search{% endblock %}
+{% block content %}
+{% load my_filters %}
 <h2>Edit Player: {{ player.first_name }} {{ player.last_name }}</h2>
 
 <form method="post">
@@ -30,5 +34,4 @@
     {% csrf_token %}
     <button type="submit" class="btn btn-danger">Delete Player</button>
 </form>
-
-
+{% endblock %}

@@ -1,3 +1,7 @@
+{% extends "base.html" %}
+{% block title %}Edit Player{% endblock %}
+{% block content %}
+{% load my_filters %}
 <h2>Select Team</h2>
 <form method="get">
   <select name="team_id" onchange="this.form.submit()">
@@ -18,3 +22,4 @@
     {% endfor %}
   </ul>
 {% endif %}
+{% endblock %}

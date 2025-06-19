@@ -619,31 +619,22 @@ def rate_player(request, playerID, year, team_name):
     greenfield_dict['pitch_ctl'] = pcn
     greenfield_dict['pitch_prob_hit'] = pitch_ph
 
-    position_dict = {}
-    for position, po, a, e, g in fielding:
-        # [('2B', 160, 206, 14), ('3B', 12, 26, 5), ('OF', 21, 1, 2)]
-        fielding_stats = {
-            'G': g, #position[4],
-            'POS': position, #position[0],
-            'PO': po, 
-            'A': a, #position[2],
-            'E': e, #position[3],
-            'CS': sba_total,
-            'SBA': cs_total
-        }
-
+    # Fielding ratings
+    position_ratings = []
+    for pos, po, a, e, g in fielding:
         successes = po + a
-        chances = po + a + e #fielding_stats['PO'] + fielding_stats['A'] + fielding_stats['E']
-        print(successes, chances)
+        chances = po + a + e
         fpct = round(successes / chances, 3) if chances > 0 else 0.000
-        fielding_stats['PCT'] = fpct
-
-        superior =  get_superior_rating(position, fpct, int(year))
-        dr = def_rating(position, a, po, g)
+        superior = get_superior_rating(pos, fpct, greenfield_dict['year'])
+        dr = def_rating(pos, a, po, g)
         cr = get_catcher_throw_rating(cs_total, sba_total)
-        position_dict['pos'] = superior + dr + cr
+        position_ratings.append((pos, g, superior + dr + cr))
 
-    greenfield_dict['positions'] = position_dict
+    # Sort by descending games played, then store in ordered dict
+    position_ratings.sort(key=lambda x: x[1], reverse=True)
+    ordered_position_dict = OrderedDict((pos, rating) for pos, g, rating in position_ratings)
+
+    greenfield_dict['positions'] = ordered_position_dict
     request.session['greenfield_data'] = greenfield_dict
 
     context = {
