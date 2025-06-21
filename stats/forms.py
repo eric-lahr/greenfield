@@ -1,5 +1,9 @@
 from django import forms
-from .models import Competition, Game, LineupEntry
+from django.forms import modelformset_factory
+from .models import (
+    Competition, Game, LineupEntry, PlayerStatLine,
+    Substitution, InningScore
+)
 from players.models import Players
 
 POSITIONS = [
@@ -11,24 +15,50 @@ class LineupEntryForm(forms.Form):
     def __init__(self, *args, team=None, **kwargs):
         super().__init__(*args, **kwargs)
 
-        if team:
-            players = Players.objects.filter(team_serial=team)
-        else:
-            players = Players.objects.none()
+        # Grab everyone on this team
+        players = Players.objects.filter(team_serial=team) if team else Players.objects.none()
 
+        # Batting order 1–9
         for i in range(1, 10):
             self.fields[f'player_{i}'] = forms.ModelChoiceField(
                 queryset=players,
                 label=f"Batting #{i}",
-                required=True,
                 widget=forms.Select(attrs={'class': 'form-control'})
             )
             self.fields[f'position_{i}'] = forms.ChoiceField(
                 choices=POSITIONS,
                 label=f"Position #{i}",
-                required=True,
                 widget=forms.Select(attrs={'class': 'form-control'})
             )
+
+        # Now limit to those who actually have a pitching rating
+        pitchers = (
+            players
+            .filter(pitching__isnull=False)   # not null
+            .exclude(pitching__exact='')      # not empty string
+        )
+
+        self.fields['starting_pitcher'] = forms.ModelChoiceField(
+            queryset=pitchers,
+            label="Starting Pitcher",
+            widget=forms.Select(attrs={'class': 'form-control'})
+        )
+
+
+        # Filter for pitchers only
+        # Only those with a non-empty pitching rating
+        pitchers = (
+            players
+            .filter(pitching__isnull=False)   # has a pitching string
+            .exclude(pitching__exact='')      # not blank
+        )
+
+        self.fields['starting_pitcher'] = forms.ModelChoiceField(
+            queryset=pitchers,
+            label="Starting Pitcher",
+            required=True,
+            widget=forms.Select(attrs={'class': 'form-control'})
+        )
 
 class CompetitionForm(forms.ModelForm):
     class Meta:
@@ -51,3 +81,119 @@ class GameForm(forms.ModelForm):
             'home_score': forms.NumberInput(attrs={'class': 'form-control'}),
             'away_score': forms.NumberInput(attrs={'class': 'form-control'}),
         }
+
+class SubstitutionForm(forms.ModelForm):
+    def __init__(self, *args, team=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if team:
+            self.fields['player_in'].queryset = Players.objects.filter(team_serial=team)
+            self.fields['player_out'].queryset = Players.objects.filter(team_serial=team)
+
+    class Meta:
+        model = Substitution
+        fields = ['player_in', 'player_out', 'inning', 'position']
+        widgets = {
+            'inning': forms.NumberInput(attrs={'class': 'form-control'}),
+            'position': forms.Select(choices=POSITIONS, attrs={'class': 'form-control'}),
+        }
+
+class InningScoreForm(forms.ModelForm):
+    class Meta:
+        model = InningScore
+        fields = ['inning', 'runs']
+        widgets = {
+            'inning': forms.NumberInput(attrs={'class': 'form-control', 'style': 'width: 60px;'}),
+            'runs': forms.NumberInput(attrs={'class': 'form-control', 'style': 'width: 60px;'}),
+        }
+
+# Create the formset—no extra blank rows, and no delete checkbox
+InningScoreFormSet = modelformset_factory(
+    InningScore,
+    form=InningScoreForm,
+    extra=0,
+    can_delete=False
+)
+
+# Batting-only stats form
+class BattingStatForm(forms.ModelForm):
+    class Meta:
+        model = PlayerStatLine
+        fields = [
+            'ab', 'r', 'h', 'hr', 'rbi', 'doubles', 'triples',
+            'bb', 'so', 'sf', 'hbp', 'sb', 'cs', 'dp'
+        ]
+        widgets = {
+            'ab': forms.NumberInput(attrs={'class': 'form-control', 'style': 'width: 80px;'}),
+            'r': forms.NumberInput(attrs={'class': 'form-control', 'style': 'width: 80px;'}),
+            'h': forms.NumberInput(attrs={'class': 'form-control', 'style': 'width: 80px;'}),
+            'doubles': forms.NumberInput(attrs={'class': 'form-control', 'style': 'width: 80px;'}),
+            'triples': forms.NumberInput(attrs={'class': 'form-control', 'style': 'width: 80px;'}),
+            'hr': forms.NumberInput(attrs={'class': 'form-control', 'style': 'width: 80px;'}),
+            'rbi': forms.NumberInput(attrs={'class': 'form-control', 'style': 'width: 80px;'}),
+            'bb': forms.NumberInput(attrs={'class': 'form-control', 'style': 'width: 80px;'}),
+            'so': forms.NumberInput(attrs={'class': 'form-control', 'style': 'width: 80px;'}),
+            'sf': forms.NumberInput(attrs={'class': 'form-control', 'style': 'width: 80px;'}),
+            'hbp': forms.NumberInput(attrs={'class': 'form-control', 'style': 'width: 80px;'}),
+            'sb': forms.NumberInput(attrs={'class': 'form-control', 'style': 'width: 80px;'}),
+            'cs': forms.NumberInput(attrs={'class': 'form-control', 'style': 'width: 80px;'}),
+            'dp': forms.NumberInput(attrs={'class': 'form-control', 'style': 'width: 80px;'}),
+        }
+
+# Pitching and defense stats form
+class PitchDefStatForm(forms.ModelForm):
+    ip_outs = forms.CharField(label="IP", widget=forms.TextInput(attrs={'class': 'form-control', 'style': 'width: 80px;'}))
+
+    class Meta:
+        model = PlayerStatLine
+        fields = [
+            'ip_outs', 'r', 'er', 'h_allowed', 'hra', 'k_thrown', 'bb_allowed',
+            'decision', 'balk', 'hb', 'wp', 'ibb',
+            'po', 'a', 'e', 'pb'
+        ]
+        widgets = {
+            'r': forms.NumberInput(attrs={'class': 'form-control', 'style': 'width: 80px;'}),
+            'er': forms.NumberInput(attrs={'class': 'form-control', 'style': 'width: 80px;'}),
+            'h_allowed': forms.NumberInput(attrs={'class': 'form-control', 'style': 'width: 80px;'}),
+            'hra': forms.NumberInput(attrs={'class': 'form-control', 'style': 'width: 80px;'}),
+            'k_thrown': forms.NumberInput(attrs={'class': 'form-control', 'style': 'width: 80px;'}),
+            'bb_allowed': forms.NumberInput(attrs={'class': 'form-control', 'style': 'width: 80px;'}),
+            'balk': forms.NumberInput(attrs={'class': 'form-control', 'style': 'width: 80px;'}),
+            'hb': forms.NumberInput(attrs={'class': 'form-control', 'style': 'width: 80px;'}),
+            'wp': forms.NumberInput(attrs={'class': 'form-control', 'style': 'width: 80px;'}),
+            'ibb': forms.NumberInput(attrs={'class': 'form-control', 'style': 'width: 80px;'}),
+            'po': forms.NumberInput(attrs={'class': 'form-control', 'style': 'width: 80px;'}),
+            'a': forms.NumberInput(attrs={'class': 'form-control', 'style': 'width: 80px;'}),
+            'e': forms.NumberInput(attrs={'class': 'form-control', 'style': 'width: 80px;'}),
+            'pb': forms.NumberInput(attrs={'class': 'form-control', 'style': 'width: 80px;'}),
+        }
+
+    def clean_ip_outs(self):
+        raw = self.cleaned_data['ip_outs'].strip()
+        try:
+            if '.' in raw:
+                full, partial = map(int, raw.split('.'))
+            else:
+                full, partial = int(raw), 0
+
+            if partial not in (0, 1, 2):
+                raise ValueError("Partial must be .0, .1, or .2")
+
+            return full * 3 + partial
+        except Exception:
+            raise forms.ValidationError("Use baseball format for IP: e.g., 5.2 (5 innings, 2 outs)")
+
+
+# Formset factories
+BattingStatFormSet = modelformset_factory(
+    PlayerStatLine,
+    form=BattingStatForm,
+    extra=0,
+    can_delete=False
+)
+
+PitchDefStatFormSet = modelformset_factory(
+    PlayerStatLine,
+    form=PitchDefStatForm,
+    extra=0,
+    can_delete=False
+)

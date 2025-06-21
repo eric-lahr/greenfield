@@ -25,7 +25,7 @@ from django.db.models import Q
 from django.contrib import messages
 from .forms import (
     PlayerForm, PlayerPositionRatingFormSet, PlayerEditForm,
-    PlayerPositionRatingModelFormset
+    PlayerPositionRatingModelFormset, CustomPlayerStatsForm
 )
 from django.forms import modelformset_factory
 from django.contrib import messages
@@ -78,6 +78,103 @@ def create_players_from_team(request):
 
     # If no year/team_name provided, show the form
     return render(request, 'players/create_players_from_team.html')
+
+
+def create_custom_player(request):
+    if request.method == 'POST':
+        form = CustomPlayerStatsForm(request.POST)
+        if form.is_valid():
+            data = form.cleaned_data
+            year = data['year']
+            team_name = data['team_name']
+            greenfield_dict = {
+                'year': year,
+                'team_name': team_name,
+                'first_name': data['first_name'],
+                'last_name': data['last_name'],
+                'bats': data['bats'],
+                'throws': data['throws'],
+            }
+
+            # Calculate PA
+            SF = data.get('SF') or 0
+            SH = data.get('SH') or 0
+            PA = data['AB'] + data['BB'] + data['HBP'] + SF + SH
+
+            # Batting ratings
+            if PA > 5:
+                off_rate_str = (
+                    clutch(data['RBI'], data['G']) +
+                    hit_letter(data['H'], data['AB']) +
+                    str(hr_3b_number(data['HR'], data['triples'], data['H'])) +
+                    (speed(data['SB'], data['H'], data['BB'], data['HBP'], data['doubles'], data['triples'], data['HR']) if data['SB'] > 0 else '') +
+                    ' ' + batter_bb_k(data['BB'], data['SO'], data['HBP'], PA)
+                )
+                prob_hit_num = probable_hit_number(data['H'], PA)
+            else:
+                off_rate_str = 'G+ [n-36]'
+                prob_hit_num = 66
+
+            greenfield_dict.update({
+                'offense': off_rate_str,
+                'bat_prob_hit': prob_hit_num
+            })
+
+            # Pitching ratings
+            if data['BFP']:
+                ip_whole = data['IP_outs'] // 3
+                ip_rem = data['IP_outs'] % 3
+                ip = ip_whole + (0.333 if ip_rem == 1 else 0.667 if ip_rem == 2 else 0)
+
+                if not data['BAOpp']:
+                    data['BAOpp'] = round(int(data['HA']) / (int(data['BFP']) - int(data['BB_pitch']) - int(data['HBP_pitch'])), 3)
+
+                pitch_string = (
+                    gopher(data['HRA'], data['HA']) +
+                    pitch_letter(data['BAOpp']) +
+                    innings_of_effectiveness(data['GP'], ip) +
+                    ' ' + pitcher_bb_k_hbp(data['BFP'], data['BB_pitch'], data['SO_pitch'], data['HBP_pitch']) +
+                    ' ' + wild_pitch(data['WP'])
+                )
+                pitch_ctl = pitcher_control_number(data['BB_pitch'], data['HBP_pitch'], data['HA'], data['BFP'])
+                pitch_ph = probable_hit_number(data['HA'], data['BFP'])
+            else:
+                pitch_string = ''
+                pitch_ctl = ''
+                pitch_ph = ''
+
+            greenfield_dict.update({
+                'pitching': pitch_string,
+                'pitch_ctl': pitch_ctl,
+                'pitch_prob_hit': pitch_ph
+            })
+
+            # Fielding
+            position_ratings = []
+            for i in [1, 2, 3, 4, 5]:
+                pos = data.get(f'POS{i}')
+                if pos:
+                    po = data.get(f'POS{i}_PO') or 0
+                    a = data.get(f'POS{i}_A') or 0
+                    e = data.get(f'POS{i}_E') or 0
+                    g = data.get(f'POS{i}_G') or 0
+                    fpct = round((po + a) / (po + a + e), 3) if (po + a + e) > 0 else 0.000
+                    superior = get_superior_rating(pos, fpct, int(year))
+                    dr = def_rating(pos, a, po, g)
+                    cr = get_catcher_throw_rating(data.get('CS') or 0, data.get('SBA') or 0)
+                    position_ratings.append((pos, g, superior + dr + cr))
+
+            position_ratings.sort(key=lambda x: x[1], reverse=True)
+            greenfield_dict['positions'] = OrderedDict((pos, rating) for pos, g, rating in position_ratings)
+
+            request.session['greenfield_data'] = greenfield_dict
+            return redirect('players:create_record')  # or 'players:review_custom_player' if previewing
+
+    else:
+        form = CustomPlayerStatsForm()
+
+    return render(request, 'players/create_custom_player.html', {'form': form})
+
 
 def search_career_players(request):
     players = []
@@ -165,6 +262,7 @@ def search_career_players(request):
         "first_name": first_name,
         "last_name": last_name,
     })
+
 
 def rate_player_career(request, player_id):
     greenfield_dict = {'year': 'All Time'}
@@ -438,11 +536,13 @@ def rate_player_career(request, player_id):
     }
     return render(request, 'players/rate_player.html', context)
 
+
 def view_player(request, playerID):
     with connection.cursor() as cursor:
         cursor.execute("SELECT * FROM People WHERE playerID = %s", [playerID])
         row = cursor.fetchone()
     # Render with a simple template that displays the player info
+
 
 def rate_player(request, playerID, year, team_name):
     greenfield_dict = {'year': year, 'team_name': team_name}
@@ -492,7 +592,7 @@ def rate_player(request, playerID, year, team_name):
                 FROM Fielding
                 WHERE playerID = %s AND yearID = %s
                 GROUP BY POS
-                HAVING SUM(G) >= 6
+                HAVING SUM(G) >= 1
                 ORDER BY SUM(G) DESC
             """, (playerID, year))
             fielding = cursor.fetchall()
@@ -519,7 +619,7 @@ def rate_player(request, playerID, year, team_name):
                     FROM FieldingOFsplit
                     WHERE playerID = %s AND yearID = %s
                     GROUP BY POS
-                    HAVING SUM(G) >= 15
+                    HAVING SUM(G) >= 5
                     ORDER BY SUM(G) DESC
                 """, (playerID, year))
                 of_splits = cursor.fetchall()
@@ -665,6 +765,7 @@ def select_team_for_edit(request):
         'selected_team_id': int(selected_team_id) if selected_team_id else None,
     })
 
+
 def edit_player(request, player_id):
     player = get_object_or_404(Players, pk=player_id)
     position_ratings = PlayerPositionRating.objects.filter(player=player)
@@ -687,6 +788,7 @@ def edit_player(request, player_id):
         'player': player
     })
 
+
 def delete_player(request, player_id):
     player = get_object_or_404(Players, pk=player_id)
 
@@ -707,6 +809,7 @@ def delete_player(request, player_id):
     return render(request, 'players/confirm_delete.html', {
         'player': player
     })
+
 
 def create_record(request):
     if request.method == 'POST' and 'confirm_save' in request.POST:

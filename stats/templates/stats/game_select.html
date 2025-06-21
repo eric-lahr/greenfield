@@ -2,31 +2,58 @@
 {% block title %}Select Game{% endblock %}
 
 {% block content %}
+  <!-- Optional: Scoped styles to tweak spacing and wrapping -->
+  <style>
+    td, th {
+      white-space: nowrap;
+      vertical-align: middle;
+    }
+    .table th:nth-child(1) { width: 120px; }   /* Date */
+    .table th:nth-child(2) { width: 200px; }   /* Competition */
+    .table th:nth-child(3) { width: 280px; }   /* Matchup */
+    .table th:nth-child(4) { width: 120px; }   /* Score */
+    .table th:nth-child(5) { width: 100%; }    /* Actions, flexible */
+  </style>
+
   <div class="container mt-4">
     <h2>Select a Game to Enter Lineups & Stats</h2>
-    <table class="table table-bordered">
-      <thead>
-        <tr>
-          <th>Date</th>
-          <th>Competition</th>
-          <th>Matchup</th>
-          <th>Score</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for game in games %}
-        <tr>
-          <td>{{ game.date_played }}</td>
-          <td>{{ game.competition.name }}</td>
-          <td>{{ game.away_team }} @ {{ game.home_team }}</td>
-          <td>{{ game.away_score }} - {{ game.home_score }}</td>
-          <td>
-            <a href="{% url 'stats:enter-lineups' game.pk %}" class="btn btn-sm btn-primary">Enter Lineups</a>
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+    <a href="{% url 'stats:create-game' %}" class="btn btn-success mb-3">➕ Create New Game</a>
+
+    <div class="table-responsive">
+      <table class="table table-bordered table-striped w-100">
+        <thead class="thead-dark">
+          <tr>
+            <th>Date</th>
+            <th>Competition</th>
+            <th>Matchup</th>
+            <th>Score</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for game in games %}
+          <tr>
+            <td>{{ game.date_played }}</td>
+            <td>{{ game.competition.name }}</td>
+            <td>{{ game.away_team }} @ {{ game.home_team }}</td>
+            <td>{{ game.away_score }} - {{ game.home_score }}</td>
+            <td>
+              <div class="d-flex flex-wrap gap-1">
+                <a href="{% url 'stats:enter-lineups' game.pk %}" class="btn btn-sm btn-primary" role="button">Lineups</a>
+                <a href="{% url 'stats:enter-substitutions' game.id %}?team=home" class="btn btn-sm btn-primary" role="button">Home Subs</a>
+                <a href="{% url 'stats:enter-substitutions' game.id %}?team=away" class="btn btn-sm btn-secondary" role="button">Away Subs</a>
+                <a href="{% url 'stats:enter-inning-scores' game.pk %}" class="btn btn-sm btn-info" role="button">Inning Runs</a>
+                <a href="{% url 'stats:enter-statlines' game.pk %}" class="btn btn-sm btn-success" role="button">Stats</a>
+                <a href="{% url 'stats:finalize-game' game.pk %}" class="btn btn-sm btn-warning" role="button">Finalize</a>
+                {% if game.status == 'draft' %}
+                  <a href="{% url 'stats:delete-game' game.pk %}" class="btn btn-sm btn-danger" role="button">Delete</a>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
   </div>
 {% endblock %}

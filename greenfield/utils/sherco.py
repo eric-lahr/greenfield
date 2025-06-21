@@ -130,23 +130,6 @@ def pitcher_bb_k_hbp(bf, bb, so, hbp):
 
     return bb_string + k_str + hp_str
 
-# def pitcher_bb_k_hbp(bf, bb, so, hbp):
-#     bb_check = math.ceil((bb / bf) * 36)
-#     bb_num = sorted(numbers)[bb_check]
-#     kbbwp_string = ' (' + str(bb_num)+'-'
-
-#     k_check = round((so / bf) * 36)
-#     k_num = sorted(numbers)[bb_check + k_check]
-#     kbbwp_string += str(k_num)
-
-#     hp_check = math.ceil((hbp / bf) * 36)
-#     hp_num = sorted(numbers)[bb_check + k_check + hp_check]
-#     if hp_num == k_num: kbbwp_string += ') '
-#     else: kbbwp_string += '/' + str(hp_num) + ') '
-#     if hbp > 5: kbbwp_string += '[WP] '
-
-#     return kbbwp_string
-
 def gopher(hr, h):
     if h == 0: gopher_string = ''
     else:

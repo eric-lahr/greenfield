@@ -1,0 +1,37 @@
+{% load my_filters %}
+
+{% with sample_list=batting_pitchdef_forms|get_item:team_label %}
+  {% with sample_pair=sample_list.0 %}
+    <h2>{{ game|get_team_name:team_label }} ({{ team_label|title }})</h2>
+    <table class="table table-bordered table-sm">
+      <thead class="thead-dark">
+        <tr>
+          <th rowspan="2">Player</th>
+          <th colspan="{{ sample_pair.0.visible_fields|length }}">Batting</th>
+          <th colspan="{{ sample_pair.1.visible_fields|length }}">Pitching / Defense</th>
+        </tr>
+        <tr>
+          {% for field in sample_pair.0.visible_fields %}
+            <th>{{ field.label }}</th>
+          {% endfor %}
+          {% for field in sample_pair.1.visible_fields %}
+            <th>{{ field.label }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for b_form, p_form in sample_list %}
+          <tr>
+            <td>{{ b_form.instance.player.first_name }} {{ b_form.instance.player.last_name }}</td>
+            {% for field in b_form.visible_fields %}
+              <td>{{ field }}</td>
+            {% endfor %}
+            {% for field in p_form.visible_fields %}
+              <td>{{ field }}</td>
+            {% endfor %}
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endwith %}
+{% endwith %}

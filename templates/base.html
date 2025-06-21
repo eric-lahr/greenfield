@@ -11,8 +11,11 @@
 
   <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-3">
     <a class="navbar-brand" href="/">🏟️ My Sherco Baseball App</a>
-  </nav>
-
+  
+    <div class="ml-auto">  <!-- Use ms-auto if you're on Bootstrap 5+ -->
+      <a href="{% url 'menu:home' %}" class="btn btn-secondary btn-sm">Return to Main Menu</a>
+    </div>
+  </nav>  
   <div class="container">
     {% block content %}
     <!-- Page-specific content will go here -->

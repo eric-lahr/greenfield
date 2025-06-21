@@ -35,8 +35,14 @@ class Game(models.Model):
     home_score = models.PositiveSmallIntegerField()
     away_score = models.PositiveSmallIntegerField()
 
+    STATUS_CHOICES = [
+        ('draft', 'Draft'),
+        ('final', 'FInal')
+    ]
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='draft')
+
     def __str__(self):
-        return f"{self.away_team} @ {self.home_team} ({self.date_played})"
+        return f"{self.date_played}: {self.away_team} @ {self.home_team})"
 
 
 class TeamStanding(models.Model):
@@ -61,23 +67,33 @@ class PlayerStatLine(models.Model):
     team = models.ForeignKey('teams.Teams', on_delete=models.CASCADE)
 
     # Offense
-    pa = models.PositiveSmallIntegerField(default=0)
     ab = models.PositiveSmallIntegerField(default=0)
     h = models.PositiveSmallIntegerField(default=0)
+    doubles = models.PositiveSmallIntegerField(default=0)
+    triples = models.PositiveSmallIntegerField(default=0)
     r = models.PositiveSmallIntegerField(default=0)
     rbi = models.PositiveSmallIntegerField(default=0)
     bb = models.PositiveSmallIntegerField(default=0)
-    k = models.PositiveSmallIntegerField(default=0)
+    hbp = models.PositiveSmallIntegerField(default=0)
+    so = models.PositiveSmallIntegerField(default=0)
+    sf = models.PositiveSmallIntegerField(default=0)
     hr = models.PositiveSmallIntegerField(default=0)
     sb = models.PositiveSmallIntegerField(default=0)
     cs = models.PositiveSmallIntegerField(default=0)
+    dp = models.PositiveSmallIntegerField(default=0)
 
     # Pitching
-    ip = models.FloatField(default=0)  # innings pitched
+    ip_outs = models.IntegerField(default=0)  # innings pitched
     er = models.PositiveSmallIntegerField(default=0)
     h_allowed = models.PositiveSmallIntegerField(default=0)
     bb_allowed = models.PositiveSmallIntegerField(default=0)
     k_thrown = models.PositiveSmallIntegerField(default=0)
+    hb = models.PositiveSmallIntegerField(default=0)
+    hra = models.PositiveSmallIntegerField(default=0)
+    balk = models.PositiveSmallIntegerField(default=0)
+    wp = models.PositiveSmallIntegerField(default=0)
+    ibb = models.PositiveSmallIntegerField(default=0)
+
     decision = models.CharField(
         max_length=1,
         choices=[('W', 'Win'), ('L', 'Loss'), ('S', 'Save'), ('', 'None')],
@@ -89,6 +105,7 @@ class PlayerStatLine(models.Model):
     po = models.PositiveSmallIntegerField(default=0)
     a = models.PositiveSmallIntegerField(default=0)
     e = models.PositiveSmallIntegerField(default=0)
+    pb = models.PositiveSmallIntegerField(default=0)
     position = models.CharField(max_length=3)  # e.g., SS, C, RF
 
     def __str__(self):
@@ -99,7 +116,7 @@ class LineupEntry(models.Model):
     game = models.ForeignKey('Game', on_delete=models.CASCADE)
     team = models.ForeignKey('teams.Teams', on_delete=models.CASCADE)
     player = models.ForeignKey('players.Players', on_delete=models.CASCADE)  # updated
-    batting_order = models.PositiveSmallIntegerField()
+    batting_order = models.PositiveSmallIntegerField(null=True, blank=True)
     fielding_position = models.CharField(max_length=3)
     is_starting = models.BooleanField(default=True)
 
@@ -121,3 +138,9 @@ class InningScore(models.Model):
     team = models.ForeignKey('teams.Teams', on_delete=models.CASCADE)
     inning = models.PositiveSmallIntegerField()
     runs = models.PositiveSmallIntegerField()
+
+    class Meta:
+        unique_together = ('game', 'team', 'inning')
+
+    def __str__(self):
+        return f"{self.team} - Inning {self.inning}: {self.runs} runs"

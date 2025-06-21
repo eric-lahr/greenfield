@@ -1,20 +1,73 @@
 {% extends "base.html" %}
 {% block title %}Enter Lineups{% endblock %}
-
 {% block content %}
-{% load my_filters %}
 <div class="container mt-4">
-    <h2>Enter Lineups for {{ game.away_team }} @ {{ game.home_team }}</h2>
-    <form method="post">
-        {% csrf_token %}
-        
-        <h4>{{ game.away_team }}</h4>
-        {{ away_form.as_p }}
+  <h2>Enter Lineups for {{ game.date_played }} — {{ game.away_team }} @ {{ game.home_team }}</h2>
+  <form method="post">
+    {% csrf_token %}
+    <div class="row">
+      <!-- Home Team -->
+      <div class="col-md-6">
+        <h4>{{ game.home_team }} Lineup</h4>
 
-        <h4 class="mt-4">{{ game.home_team }}</h4>
-        {{ home_form.as_p }}
+        {% for player_field, pos_field in home_batting %}
+          <div class="form-row mb-2">
+            <div class="col">
+              {{ player_field.label_tag }} {{ player_field }}
+              {% if player_field.errors %}
+                <div class="text-danger small">{{ player_field.errors }}</div>
+              {% endif %}
+            </div>
+            <div class="col">
+              {{ pos_field.label_tag }} {{ pos_field }}
+              {% if pos_field.errors %}
+                <div class="text-danger small">{{ pos_field.errors }}</div>
+              {% endif %}
+            </div>
+          </div>
+        {% endfor %}
 
-        <button type="submit" class="btn btn-success mt-3">Save Lineups</button>
-    </form>
+        <hr>
+        <div class="form-group">
+          {{ home_form.starting_pitcher.label_tag }} {{ home_form.starting_pitcher }}
+          {% if home_form.starting_pitcher.errors %}
+            <div class="text-danger small">{{ home_form.starting_pitcher.errors }}</div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Away Team -->
+      <div class="col-md-6">
+        <h4>{{ game.away_team }} Lineup</h4>
+
+        {% for player_field, pos_field in away_batting %}
+          <div class="form-row mb-2">
+            <div class="col">
+              {{ player_field.label_tag }} {{ player_field }}
+              {% if player_field.errors %}
+                <div class="text-danger small">{{ player_field.errors }}</div>
+              {% endif %}
+            </div>
+            <div class="col">
+              {{ pos_field.label_tag }} {{ pos_field }}
+              {% if pos_field.errors %}
+                <div class="text-danger small">{{ pos_field.errors }}</div>
+              {% endif %}
+            </div>
+          </div>
+        {% endfor %}
+
+        <hr>
+        <div class="form-group">
+          {{ away_form.starting_pitcher.label_tag }} {{ away_form.starting_pitcher }}
+          {% if away_form.starting_pitcher.errors %}
+            <div class="text-danger small">{{ away_form.starting_pitcher.errors }}</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <button type="submit" class="btn btn-success mt-3">Save Lineups</button>
+  </form>
 </div>
 {% endblock %}

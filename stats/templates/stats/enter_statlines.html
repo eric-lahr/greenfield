@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Enter Stats Page{% endblock %}
+{% block content %}
+{% load my_filters %}
+{% load static %}
+
+<form method="post">
+  {% csrf_token %}
+  {{ batting_mgmt }}
+  {{ pitchdef_mgmt }}
+
+  {% include "stats/partials/team_stat_table.html" with team_label="away" %}
+  {% include "stats/partials/team_stat_table.html" with team_label="home" %}
+
+  <div class="mt-3">
+    <button type="submit" class="btn btn-success">Save Stats</button>
+  </div>
+</form>
+{% endblock %}
