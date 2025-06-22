@@ -12,8 +12,10 @@
   <table class="table table-sm">
     <thead>
       <tr>
-        <th>Team</th><th>AB</th><th>H</th><th>R</th><th>RBI</th><th>HR</th>
-        <th>BB</th><th>K</th><th>SB</th><th>CS</th>
+        <th>Team</th><th>AVG</th><th>OBP</th><th>OPS</th>
+        <th>SLG</th><th>AB</th><th>H</th><th>R</th>
+        <th>RBI</th><th>HR</th><th>BB</th><th>SO</th>
+        <th>SB</th><th>CS</th>
       </tr>
     </thead>
     <tbody>
@@ -21,13 +23,17 @@
       <tr>
         <!-- use the annotated team_name -->
         <td>{{ row.team_name }}</td>
+        <td>{{ row.avg|floatformat:3 }}</td>
+        <td>{{ row.obp|floatformat:3 }}</td>
+        <td>{{ row.ops|floatformat:3 }}</td>
+        <td>{{ row.slg|floatformat:3 }}</td>
         <td>{{ row.ab }}</td>
         <td>{{ row.h }}</td>
         <td>{{ row.r }}</td>
         <td>{{ row.rbi }}</td>
         <td>{{ row.hr }}</td>
         <td>{{ row.bb }}</td>
-        <td>{{ row.k }}</td>
+        <td>{{ row.so }}</td>
         <td>{{ row.sb }}</td>
         <td>{{ row.cs }}</td>
       </tr>

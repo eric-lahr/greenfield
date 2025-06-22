@@ -5,7 +5,9 @@ from django.views.generic import ListView, CreateView
 from django.urls import reverse_lazy, reverse
 from django.forms import formset_factory
 from django.contrib import messages
-from django.db.models import Q, Sum, F, Count, Value
+from django.db.models import (
+    Q, Sum, F, Count, Value, FloatField, ExpressionWrapper
+    )
 from django.db.models.functions import Concat
 from urllib.parse import urlencode
 from .models import (
@@ -334,16 +336,25 @@ def enter_inning_scores(request, game_id):
     game = get_object_or_404(Game, pk=game_id)
     MAX_INNINGS = 9
 
-    # On GET, make sure we have rows for each inning/team
+    # Read how many extra innings to show (default 0)
+    try:
+        extra = int(request.GET.get('extra', 0))
+    except ValueError:
+        extra = 0
+    total_innings = MAX_INNINGS + extra
+
+    # On GET, make sure we have rows 1..total_innings
     if request.method == 'GET':
         for team in (game.away_team, game.home_team):
-            for inn in range(1, MAX_INNINGS + 1):
+            for inn in range(1, total_innings + 1):
                 InningScore.objects.get_or_create(
                     game=game,
                     team=team,
                     inning=inn,
                     defaults={'runs': 0}
                 )
+    # … the rest remains the same …
+
 
     # Now build formsets over those rows
     home_qs = InningScore.objects.filter(game=game, team=game.home_team).order_by('inning')
@@ -382,47 +393,47 @@ def enter_inning_scores(request, game_id):
     })
 
 
-def enter_enhanced_stats(request, game_id):
-    game = get_object_or_404(Game, pk=game_id)
+# def enter_enhanced_stats(request, game_id):
+#     game = get_object_or_404(Game, pk=game_id)
 
-    # 1a: pull every player who has a lineup entry this game
-    lineup_entries = LineupEntry.objects.filter(game=game)
-    for entry in lineup_entries:
-        # create a stat‐line for this player/team if it doesn't exist yet
-        PlayerStatLine.objects.get_or_create(
-            game=game,
-            player=entry.player,
-            team=entry.team,
-            defaults={
-                'pa': 0, 'ab': 0, 'h': 0,  'r': 0, 'rbi': 0,
-                'bb': 0, 'k': 0,  'hr': 0, 'sb': 0, 'cs': 0,
-                'ip': 0.0, 'er': 0, 'h_allowed': 0, 'bb_allowed': 0,
-                'k_thrown': 0, 'decision': '',
-                'po': 0, 'a': 0, 'e': 0, 'position': entry.fielding_position
-            }
-        )
+#     # 1a: pull every player who has a lineup entry this game
+#     lineup_entries = LineupEntry.objects.filter(game=game)
+#     for entry in lineup_entries:
+#         # create a stat‐line for this player/team if it doesn't exist yet
+#         PlayerStatLine.objects.get_or_create(
+#             game=game,
+#             player=entry.player,
+#             team=entry.team,
+#             defaults={
+#                 'pa': 0, 'ab': 0, 'h': 0,  'r': 0, 'rbi': 0,
+#                 'bb': 0, 'k': 0,  'hr': 0, 'sb': 0, 'cs': 0,
+#                 'ip': 0.0, 'er': 0, 'h_allowed': 0, 'bb_allowed': 0,
+#                 'k_thrown': 0, 'decision': '',
+#                 'po': 0, 'a': 0, 'e': 0, 'position': entry.fielding_position
+#             }
+#         )
 
-    # 1b: build a formset over those rows
-    EnhancedFormSet = modelformset_factory(
-        PlayerStatLine,
-        form=EnhancedStatForm,
-        extra=0,
-        can_delete=False
-    )
-    qs = PlayerStatLine.objects.filter(game=game).order_by('team__id', 'player__last_name')
+#     # 1b: build a formset over those rows
+#     EnhancedFormSet = modelformset_factory(
+#         PlayerStatLine,
+#         form=EnhancedStatForm,
+#         extra=0,
+#         can_delete=False
+#     )
+#     qs = PlayerStatLine.objects.filter(game=game).order_by('team__id', 'player__last_name')
 
-    if request.method == 'POST':
-        formset = EnhancedFormSet(request.POST, queryset=qs, prefix='enh')
-        if formset.is_valid():
-            formset.save()
-            return redirect('stats:game-select')
-    else:
-        formset = EnhancedFormSet(queryset=qs, prefix='enh')
+#     if request.method == 'POST':
+#         formset = EnhancedFormSet(request.POST, queryset=qs, prefix='enh')
+#         if formset.is_valid():
+#             formset.save()
+#             return redirect('stats:game-select')
+#     else:
+#         formset = EnhancedFormSet(queryset=qs, prefix='enh')
 
-    return render(request, 'stats/enter_enhanced_stats.html', {
-        'game': game,
-        'formset': formset,
-    })
+#     return render(request, 'stats/enter_enhanced_stats.html', {
+#         'game': game,
+#         'formset': formset,
+#     })
 
 
 def competition_select_view(request):
@@ -469,10 +480,10 @@ def competition_team_stats_view(request):
     comp_ids = request.GET.getlist('competitions')
     competitions = get_list_or_404(Competition, pk__in=comp_ids)
 
-    stats = (
+    # 1) Sum up all the raw counting stats (including the ones we’d lost)
+    qs = (
         PlayerStatLine.objects
         .filter(game__competition__in=competitions)
-        # Make sure to include every non-aggregated column here:
         .values(
             'team__serial',
             'team__first_name',
@@ -485,23 +496,50 @@ def competition_team_stats_view(request):
                 Value(' '),
                 F('team__team_name')
             ),
+
+            # raw totals
             ab=Sum('ab'),
             h=Sum('h'),
-            r=Sum('r'),
-            rbi=Sum('rbi'),
+            r=Sum('r'),           # Runs
+            rbi=Sum('rbi'),       # RBI
             hr=Sum('hr'),
             bb=Sum('bb'),
-            so=Sum('so'),        # <-- strikeouts is 'so', not 'k'
+            so=Sum('so'),         # Strikeouts
             hbp=Sum('hbp'),
             doubles=Sum('doubles'),
             triples=Sum('triples'),
-            sb=Sum('sb'),
-            cs=Sum('cs'),
+            sb=Sum('sb'),         # Stolen bases
+            cs=Sum('cs'),         # Caught stealing
             dp=Sum('dp'),
-            # …any other offensive sums you need…
+            sf=Sum('sf'),
         )
-        .order_by('-h')
     )
+
+    # 2) Build rate stats (AVG, OBP, SLG) and then OPS
+    stats = qs.annotate(
+        avg=ExpressionWrapper(
+            F('h') * 1.0 / F('ab'),
+            output_field=FloatField()
+        ),
+        obp=ExpressionWrapper(
+            (F('h') + F('bb') + F('hbp')) * 1.0 /
+            (F('ab') + F('bb') + F('hbp') + F('sf')),
+            output_field=FloatField()
+        ),
+        slg=ExpressionWrapper(
+            (
+                (F('h') - F('doubles') - F('triples') - F('hr'))
+                + F('doubles') * 2
+                + F('triples') * 3
+                + F('hr') * 4
+            ) * 1.0 / F('ab'),
+            output_field=FloatField()
+        ),
+        ops=ExpressionWrapper(
+            F('obp') + F('slg'),
+            output_field=FloatField()
+        ),
+    ).order_by('-ops')
 
     return render(request, 'stats/competition_team_stats.html', {
         'stats': stats,

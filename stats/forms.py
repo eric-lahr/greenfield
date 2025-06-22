@@ -142,9 +142,18 @@ class BattingStatForm(forms.ModelForm):
         }
 
 
-# Pitching and defense stats form
 class PitchDefStatForm(forms.ModelForm):
-    ip_outs = forms.CharField(label="IP", widget=forms.TextInput(attrs={'class': 'form-control', 'style': 'width: 80px;'}))
+    # override the model’s IntegerFields with CharFields…
+    ip_outs = forms.CharField(
+        label="IP",
+        required=False,
+        widget=forms.TextInput(attrs={'class':'form-control','style':'width:80px;'})
+    )
+    ra = forms.CharField(
+        label="Runs Allowed",
+        required=False,
+        widget=forms.NumberInput(attrs={'class':'form-control','style':'width:80px;'})
+    )
 
     class Meta:
         model = PlayerStatLine
@@ -154,36 +163,37 @@ class PitchDefStatForm(forms.ModelForm):
             'po', 'a', 'e', 'pb'
         ]
         widgets = {
-            'ra': forms.NumberInput(attrs={'class': 'form-control', 'style': 'width: 80px;'}),
-            'er': forms.NumberInput(attrs={'class': 'form-control', 'style': 'width: 80px;'}),
-            'h_allowed': forms.NumberInput(attrs={'class': 'form-control', 'style': 'width: 80px;'}),
-            'hra': forms.NumberInput(attrs={'class': 'form-control', 'style': 'width: 80px;'}),
-            'k_thrown': forms.NumberInput(attrs={'class': 'form-control', 'style': 'width: 80px;'}),
-            'bb_allowed': forms.NumberInput(attrs={'class': 'form-control', 'style': 'width: 80px;'}),
-            'balk': forms.NumberInput(attrs={'class': 'form-control', 'style': 'width: 80px;'}),
-            'hb': forms.NumberInput(attrs={'class': 'form-control', 'style': 'width: 80px;'}),
-            'wp': forms.NumberInput(attrs={'class': 'form-control', 'style': 'width: 80px;'}),
-            'ibb': forms.NumberInput(attrs={'class': 'form-control', 'style': 'width: 80px;'}),
-            'po': forms.NumberInput(attrs={'class': 'form-control', 'style': 'width: 80px;'}),
-            'a': forms.NumberInput(attrs={'class': 'form-control', 'style': 'width: 80px;'}),
-            'e': forms.NumberInput(attrs={'class': 'form-control', 'style': 'width: 80px;'}),
-            'pb': forms.NumberInput(attrs={'class': 'form-control', 'style': 'width: 80px;'}),
+            # If you want custom widgets for the others, list them here
         }
 
     def clean_ip_outs(self):
-        raw = self.cleaned_data['ip_outs'].strip()
+        raw = (self.cleaned_data.get('ip_outs') or '').strip()
+        if raw == '':
+            return 0
+        if raw.startswith('.'):
+            raw = '0' + raw
         try:
             if '.' in raw:
-                full, partial = map(int, raw.split('.'))
+                full_str, part_str = raw.split('.')
+                full, part = int(full_str), int(part_str)
             else:
-                full, partial = int(raw), 0
+                full, part = int(raw), 0
+            if part not in (0, 1, 2):
+                raise ValueError
+            return full * 3 + part
+        except ValueError:
+            raise forms.ValidationError(
+                "Use baseball format for IP: e.g., 5.2 (5 innings, 2 outs)"
+            )
 
-            if partial not in (0, 1, 2):
-                raise ValueError("Partial must be .0, .1, or .2")
-
-            return full * 3 + partial
-        except Exception:
-            raise forms.ValidationError("Use baseball format for IP: e.g., 5.2 (5 innings, 2 outs)")
+    def clean_ra(self):
+        raw = (self.cleaned_data.get('ra') or '').strip()
+        if raw == '':
+            return 0
+        try:
+            return int(raw)
+        except ValueError:
+            raise forms.ValidationError("Runs Allowed must be a whole number.")
 
 
 # Formset factories
