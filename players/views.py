@@ -25,7 +25,8 @@ from django.db.models import Q
 from django.contrib import messages
 from .forms import (
     PlayerForm, PlayerPositionRatingFormSet, PlayerEditForm,
-    PlayerPositionRatingModelFormset, CustomPlayerStatsForm
+    PlayerPositionRatingModelFormset, CustomPlayerStatsForm,
+    PictureFormSet
 )
 from django.forms import modelformset_factory
 from django.contrib import messages
@@ -771,21 +772,25 @@ def edit_player(request, player_id):
     position_ratings = PlayerPositionRating.objects.filter(player=player)
 
     if request.method == 'POST':
-        player_form = PlayerEditForm(request.POST, instance=player)
+        player_form = PlayerEditForm(request.POST, request.FILES, instance=player)
         formset = PlayerPositionRatingModelFormset(request.POST, queryset=position_ratings)
+        picture_formset = PictureFormSet(request.POST, request.FILES, instance=player)
 
-        if player_form.is_valid() and formset.is_valid():
+        if player_form.is_valid() and formset.is_valid() and picture_formset.is_valid():
             player_form.save()
             formset.save()
+            picture_formset.save()
             return redirect('players:select_team_for_edit')
     else:
         player_form = PlayerEditForm(instance=player)
         formset = PlayerPositionRatingModelFormset(queryset=position_ratings)
+        picture_formset = PictureFormSet(instance=player)
 
     return render(request, 'players/edit_player.html', {
         'player_form': player_form,
         'formset': formset,
-        'player': player
+        'picture_formset': picture_formset,
+        'player': player,
     })
 
 

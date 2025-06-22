@@ -4,6 +4,9 @@
   <h2>Inning Scores – {{ game.away_team }} @ {{ game.home_team }}</h2>
   <form method="post">
     {% csrf_token %}
+    {{ away_formset.management_form }}
+    {{ home_formset.management_form }}
+
     <table class="table table-bordered text-center">
       <thead>
         <tr>
@@ -17,17 +20,26 @@
         <tr>
           <td>{{ away_team }}</td>
           {% for form in away_formset %}
+            {{ form.inning.as_hidden }}
+            {% for hidden in form.hidden_fields %}
+              {{ hidden }}
+            {% endfor %}
             <td>{{ form.runs }}</td>
           {% endfor %}
         </tr>
         <tr>
           <td>{{ home_team }}</td>
           {% for form in home_formset %}
+            {{ form.inning.as_hidden }}
+            {% for hidden in form.hidden_fields %}
+              {{ hidden }}
+            {% endfor %}
             <td>{{ form.runs }}</td>
           {% endfor %}
         </tr>
       </tbody>
     </table>
+
     <button type="submit" class="btn btn-success">Save Inning Scores</button>
   </form>
 </div>

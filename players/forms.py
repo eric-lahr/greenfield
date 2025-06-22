@@ -1,6 +1,7 @@
 from django import forms
-from .models import Players, PlayerPositionRating, Position
+from .models import Players, PlayerPositionRating, Position, PlayerPicture
 from django.forms import formset_factory, modelformset_factory
+from django.forms.models import inlineformset_factory
 
 class PlayerForm(forms.ModelForm):
     class Meta:
@@ -107,3 +108,12 @@ class CustomPlayerStatsForm(forms.Form):
     # Optional: add CS/SBA if POS is catcher
     CS = forms.IntegerField(required=False)
     SBA = forms.IntegerField(required=False)
+
+# allow adding/removing pictures; each form has just the 'picture' field
+PictureFormSet = inlineformset_factory(
+    parent_model=Players,
+    model=PlayerPicture,
+    fields=('picture',),
+    extra=1,
+    can_delete=True,
+)

@@ -84,6 +84,7 @@ class PlayerStatLine(models.Model):
 
     # Pitching
     ip_outs = models.IntegerField(default=0)  # innings pitched
+    ra = models.IntegerField(default=0)
     er = models.PositiveSmallIntegerField(default=0)
     h_allowed = models.PositiveSmallIntegerField(default=0)
     bb_allowed = models.PositiveSmallIntegerField(default=0)

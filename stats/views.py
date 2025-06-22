@@ -192,7 +192,7 @@ def enter_statlines_view(request, game_id):
                 'hr': 0, 'rbi': 0, 'bb': 0, 'so': 0, 'sf': 0,
                 'hbp': 0, 'sb': 0, 'cs': 0, 'dp': 0,
                 # pitching defaults (IP stored as outs, e.g. 0)
-                'ip_outs': 0, 'er': 0, 'h_allowed': 0,
+                'ip_outs': 0, 'ra': 0, 'er': 0, 'h_allowed': 0,
                 'bb_allowed': 0, 'k_thrown': 0,
                 'decision': '',
                 'hb': 0, 'balk': 0, 'wp': 0, 'ibb': 0,
@@ -220,9 +220,9 @@ def enter_statlines_view(request, game_id):
                 'position': sub.position,
                 # same defaults as above…
                 'ab': 0, 'r': 0, 'h': 0, 'doubles': 0, 'triples': 0,
-                'hr': 0, 'rbi': 0, 'bb': 0, 'k': 0, 'sf': 0,
+                'hr': 0, 'rbi': 0, 'bb': 0, 'so': 0, 'sf': 0,
                 'hbp': 0, 'sb': 0, 'cs': 0, 'dp': 0,
-                'ip_outs': 0, 'er': 0, 'h_allowed': 0,
+                'ip_outs': 0, 'ra': 0, 'er': 0, 'h_allowed': 0,
                 'bb_allowed': 0, 'k_thrown': 0,
                 'decision': '',
                 'hb': 0, 'balk': 0, 'wp': 0, 'ibb': 0,
@@ -246,6 +246,19 @@ def enter_statlines_view(request, game_id):
         pitchdef_formset = PitchDefStatFormSet(
             request.POST, queryset=statlines, prefix='pitchdef'
         )
+
+        # … your “restore team” loop …
+
+        # DEBUG: print out why the formset is invalid
+        if not batting_formset.is_valid() or not pitchdef_formset.is_valid():
+            print("⚠️ Batting errors:", batting_formset.errors)
+            print("⚠️ Batting non-form errors:", batting_formset.non_form_errors())
+            print("⚠️ Pitching/Def errors:", pitchdef_formset.errors)
+            print("⚠️ Pitching/Def non-form errors:", pitchdef_formset.non_form_errors())
+        else:
+            batting_formset.save()
+            pitchdef_formset.save()
+            return redirect('stats:game-select')
         
         # restore team on any instance missing it
         for form in batting_formset.forms + pitchdef_formset.forms:
@@ -339,6 +352,19 @@ def enter_inning_scores(request, game_id):
     if request.method == 'POST':
         home_formset = InningScoreFormSet(request.POST, prefix='home', queryset=home_qs)
         away_formset = InningScoreFormSet(request.POST, prefix='away', queryset=away_qs)
+
+
+        if not home_formset.is_valid() or not away_formset.is_valid():
+            print("🏳️ home errors:", home_formset.errors)
+            print("🏳️ home non-form errors:", home_formset.non_form_errors())
+            print("🏳️ away errors:", away_formset.errors)
+            print("🏳️ away non-form errors:", away_formset.non_form_errors())
+        else:
+            home_formset.save()
+            away_formset.save()
+            return redirect('stats:game-select')
+
+
         if home_formset.is_valid() and away_formset.is_valid():
             home_formset.save()
             away_formset.save()

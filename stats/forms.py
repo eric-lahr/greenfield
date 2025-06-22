@@ -149,12 +149,12 @@ class PitchDefStatForm(forms.ModelForm):
     class Meta:
         model = PlayerStatLine
         fields = [
-            'ip_outs', 'r', 'er', 'h_allowed', 'hra', 'k_thrown', 'bb_allowed',
+            'ip_outs', 'ra', 'er', 'h_allowed', 'hra', 'k_thrown', 'bb_allowed',
             'decision', 'balk', 'hb', 'wp', 'ibb',
             'po', 'a', 'e', 'pb'
         ]
         widgets = {
-            'r': forms.NumberInput(attrs={'class': 'form-control', 'style': 'width: 80px;'}),
+            'ra': forms.NumberInput(attrs={'class': 'form-control', 'style': 'width: 80px;'}),
             'er': forms.NumberInput(attrs={'class': 'form-control', 'style': 'width: 80px;'}),
             'h_allowed': forms.NumberInput(attrs={'class': 'form-control', 'style': 'width: 80px;'}),
             'hra': forms.NumberInput(attrs={'class': 'form-control', 'style': 'width: 80px;'}),
