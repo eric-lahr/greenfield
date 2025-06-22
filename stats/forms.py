@@ -114,30 +114,33 @@ InningScoreFormSet = modelformset_factory(
     can_delete=False
 )
 
-# Batting-only stats form
+
 class BattingStatForm(forms.ModelForm):
     class Meta:
         model = PlayerStatLine
         fields = [
-            'ab', 'r', 'h', 'hr', 'rbi', 'doubles', 'triples',
-            'bb', 'so', 'sf', 'hbp', 'sb', 'cs', 'dp'
+            'ab',       # At‐bats
+            'h',        # Hits
+            'doubles',  # Doubles
+            'triples',  # Triples
+            'hr',       # Home runs
+            'r',        # Runs
+            'rbi',      # RBI
+            'bb',       # Walks
+            'so',       # Strikeouts
+            'sf',       # Sac flies
+            'hbp',      # Hit by pitch
+            'sb',       # Stolen bases
+            'cs',       # Caught stealing
+            'dp',       # Double plays
         ]
         widgets = {
-            'ab': forms.NumberInput(attrs={'class': 'form-control', 'style': 'width: 80px;'}),
-            'r': forms.NumberInput(attrs={'class': 'form-control', 'style': 'width: 80px;'}),
-            'h': forms.NumberInput(attrs={'class': 'form-control', 'style': 'width: 80px;'}),
-            'doubles': forms.NumberInput(attrs={'class': 'form-control', 'style': 'width: 80px;'}),
-            'triples': forms.NumberInput(attrs={'class': 'form-control', 'style': 'width: 80px;'}),
-            'hr': forms.NumberInput(attrs={'class': 'form-control', 'style': 'width: 80px;'}),
-            'rbi': forms.NumberInput(attrs={'class': 'form-control', 'style': 'width: 80px;'}),
-            'bb': forms.NumberInput(attrs={'class': 'form-control', 'style': 'width: 80px;'}),
-            'so': forms.NumberInput(attrs={'class': 'form-control', 'style': 'width: 80px;'}),
-            'sf': forms.NumberInput(attrs={'class': 'form-control', 'style': 'width: 80px;'}),
-            'hbp': forms.NumberInput(attrs={'class': 'form-control', 'style': 'width: 80px;'}),
-            'sb': forms.NumberInput(attrs={'class': 'form-control', 'style': 'width: 80px;'}),
-            'cs': forms.NumberInput(attrs={'class': 'form-control', 'style': 'width: 80px;'}),
-            'dp': forms.NumberInput(attrs={'class': 'form-control', 'style': 'width: 80px;'}),
+            name: forms.NumberInput(
+                attrs={'class': 'form-control', 'style': 'width: 80px;'}
+            )
+            for name in fields
         }
+
 
 # Pitching and defense stats form
 class PitchDefStatForm(forms.ModelForm):
@@ -197,3 +200,10 @@ PitchDefStatFormSet = modelformset_factory(
     extra=0,
     can_delete=False
 )
+
+class CompetitionSelectForm(forms.Form):
+    competitions = forms.ModelMultipleChoiceField(
+        queryset=Competition.objects.all(),
+        widget=forms.CheckboxSelectMultiple,
+        label="Choose one or more competitions",
+    )

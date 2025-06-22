@@ -1,9 +1,13 @@
-from django.shortcuts import render, get_object_or_404, redirect
+from django.shortcuts import (
+    render, get_object_or_404, redirect, get_list_or_404
+    )
 from django.views.generic import ListView, CreateView
-from django.urls import reverse_lazy
+from django.urls import reverse_lazy, reverse
 from django.forms import formset_factory
 from django.contrib import messages
-from django.db.models import Q
+from django.db.models import Q, Sum, F, Count, Value
+from django.db.models.functions import Concat
+from urllib.parse import urlencode
 from .models import (
     Competition, Game, LineupEntry, PlayerStatLine, InningScore,
     Substitution
@@ -12,7 +16,8 @@ from players.models import Players
 from .forms import (
     CompetitionForm, GameForm, LineupEntryForm, SubstitutionForm,
     InningScoreForm, BattingStatForm, PitchDefStatForm,
-    InningScoreFormSet, BattingStatFormSet, PitchDefStatFormSet
+    InningScoreFormSet, BattingStatFormSet, PitchDefStatFormSet,
+    CompetitionSelectForm
     )
 
 class CompetitionListView(ListView):
@@ -183,8 +188,8 @@ def enter_statlines_view(request, game_id):
             defaults={
                 'position': entry.fielding_position,
                 # batting defaults
-                'ab': 0, 'r': 0, 'h': 0, 'two_b': 0, 'three_b': 0,
-                'hr': 0, 'rbi': 0, 'bb': 0, 'k': 0, 'sf': 0,
+                'ab': 0, 'r': 0, 'h': 0, 'doubles': 0, 'triples': 0,
+                'hr': 0, 'rbi': 0, 'bb': 0, 'so': 0, 'sf': 0,
                 'hbp': 0, 'sb': 0, 'cs': 0, 'dp': 0,
                 # pitching defaults (IP stored as outs, e.g. 0)
                 'ip_outs': 0, 'er': 0, 'h_allowed': 0,
@@ -214,7 +219,7 @@ def enter_statlines_view(request, game_id):
             defaults={
                 'position': sub.position,
                 # same defaults as above…
-                'ab': 0, 'r': 0, 'h': 0, 'two_b': 0, 'three_b': 0,
+                'ab': 0, 'r': 0, 'h': 0, 'doubles': 0, 'triples': 0,
                 'hr': 0, 'rbi': 0, 'bb': 0, 'k': 0, 'sf': 0,
                 'hbp': 0, 'sb': 0, 'cs': 0, 'dp': 0,
                 'ip_outs': 0, 'er': 0, 'h_allowed': 0,
@@ -241,7 +246,7 @@ def enter_statlines_view(request, game_id):
         pitchdef_formset = PitchDefStatFormSet(
             request.POST, queryset=statlines, prefix='pitchdef'
         )
-
+        
         # restore team on any instance missing it
         for form in batting_formset.forms + pitchdef_formset.forms:
             if form.instance.team_id is None:
@@ -391,4 +396,150 @@ def enter_enhanced_stats(request, game_id):
     return render(request, 'stats/enter_enhanced_stats.html', {
         'game': game,
         'formset': formset,
+    })
+
+
+def competition_select_view(request):
+    form = CompetitionSelectForm(request.GET or None)
+    if request.method == 'GET' and form.is_valid() and form.cleaned_data['competitions']:
+        # build ?competitions=1&competitions=2…
+        qs = urlencode([('competitions', c.pk) for c in form.cleaned_data['competitions']])
+        return redirect(f"{reverse('stats:competition-menu')}?{qs}")
+
+    return render(request, 'stats/competition_select.html', {
+        'form': form,
+    })
+
+
+def competition_menu_view(request):
+    # read back the GET parameters
+    comp_ids = request.GET.getlist('competitions')
+    competitions = get_list_or_404(Competition, pk__in=comp_ids)
+
+    # build a URL-encoded slug to forward on each menu link
+    qs = request.GET.urlencode()
+
+    return render(request, 'stats/competition_menu.html', {
+        'competitions': competitions,
+        'qs': qs,
+    })
+
+
+def competition_player_stats_view(request):
+    comp_ids = request.GET.getlist('competitions')
+    qs = PlayerStatLine.objects.filter(game__competition__in=comp_ids)
+    stats = (
+        qs.values('player__first_name', 'player__last_name')
+          .annotate(ab=Sum('ab'), h=Sum('h'), rbi=Sum('rbi'), hr=Sum('hr'))
+          .order_by('-h')
+    )
+    return render(request, 'stats/competition_player_stats.html', {
+        'stats': stats,
+        'qs': request.GET.urlencode(),
+    })
+
+
+def competition_team_stats_view(request):
+    comp_ids = request.GET.getlist('competitions')
+    competitions = get_list_or_404(Competition, pk__in=comp_ids)
+
+    stats = (
+        PlayerStatLine.objects
+        .filter(game__competition__in=competitions)
+        # Make sure to include every non-aggregated column here:
+        .values(
+            'team__serial',
+            'team__first_name',
+            'team__team_name',
+        )
+        .annotate(
+            team_serial=F('team__serial'),
+            team_name=Concat(
+                F('team__first_name'),
+                Value(' '),
+                F('team__team_name')
+            ),
+            ab=Sum('ab'),
+            h=Sum('h'),
+            r=Sum('r'),
+            rbi=Sum('rbi'),
+            hr=Sum('hr'),
+            bb=Sum('bb'),
+            so=Sum('so'),        # <-- strikeouts is 'so', not 'k'
+            hbp=Sum('hbp'),
+            doubles=Sum('doubles'),
+            triples=Sum('triples'),
+            sb=Sum('sb'),
+            cs=Sum('cs'),
+            dp=Sum('dp'),
+            # …any other offensive sums you need…
+        )
+        .order_by('-h')
+    )
+
+    return render(request, 'stats/competition_team_stats.html', {
+        'stats': stats,
+        'qs': request.GET.urlencode(),
+        'competitions': competitions,
+    })
+
+
+def competition_leaders_view(request):
+    comp_ids = request.GET.getlist('competitions')
+    competitions = get_list_or_404(Competition, pk__in=comp_ids)
+
+    qs = PlayerStatLine.objects.filter(game__competition__in=competitions)
+    # Leading batting average (min 10 AB)
+    leaders = (
+        qs.values('player__first_name', 'player__last_name')
+          .annotate(
+              ab=Sum('ab'),
+              h=Sum('h'),
+              avg=F('h') * 1.0 / F('ab')
+          )
+          .filter(ab__gte=10)
+          .order_by('-avg')[:20]
+    )
+
+    return render(request, 'stats/competition_leaders.html', {
+        'leaders': leaders,
+        'qs': request.GET.urlencode(),
+        'competitions': competitions,
+    })
+
+
+def competition_standings_view(request):
+    comp_ids = request.GET.getlist('competitions')
+    competitions = get_list_or_404(Competition, pk__in=comp_ids)
+
+    # Sum wins/losses/ties from TeamStanding across all comps
+    standings = (
+        TeamStanding.objects
+        .filter(competition__in=competitions)
+        .values('team__first_name', 'team__team_name')
+        .annotate(
+            wins=Sum('wins'),
+            losses=Sum('losses'),
+            ties=Sum('ties')
+        )
+        .order_by('-wins', 'losses')
+    )
+
+    return render(request, 'stats/competition_standings.html', {
+        'standings': standings,
+        'qs': request.GET.urlencode(),
+        'competitions': competitions,
+    })
+
+
+def competition_games_view(request):
+    comp_ids = request.GET.getlist('competitions')
+    competitions = get_list_or_404(Competition, pk__in=comp_ids)
+
+    games = Game.objects.filter(competition__in=competitions).order_by('date_played')
+
+    return render(request, 'stats/competition_games.html', {
+        'games': games,
+        'qs': request.GET.urlencode(),
+        'competitions': competitions,
     })

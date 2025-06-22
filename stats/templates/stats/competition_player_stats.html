@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Player Stats{% endblock %}
+{% block content %}
+  <h2>Player Stats</h2>
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Player</th><th>AB</th><th>H</th><th>RBI</th><th>HR</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in stats %}
+        <tr>
+          <td>{{ row.player__first_name }} {{ row.player__last_name }}</td>
+          <td>{{ row.ab }}</td>
+          <td>{{ row.h }}</td>
+          <td>{{ row.rbi }}</td>
+          <td>{{ row.hr }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <a href="{% url 'stats:competition-menu' %}?{{ qs }}" class="btn btn-link">
+    ← Back to Competition Menu
+  </a>
+{% endblock %}

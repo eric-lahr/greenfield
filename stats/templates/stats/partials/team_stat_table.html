@@ -22,15 +22,30 @@
       <tbody>
         {% for b_form, p_form in sample_list %}
           <tr>
-            <td>{{ b_form.instance.player.first_name }} {{ b_form.instance.player.last_name }}</td>
+            {# render the hidden id (and any other hidden) inputs #}
+            {% for hidden in b_form.hidden_fields %}
+              {{ hidden }}
+            {% endfor %}
+            {% for hidden in p_form.hidden_fields %}
+              {{ hidden }}
+            {% endfor %}
+        
+            <td>
+              {{ b_form.instance.player.first_name }}
+              {{ b_form.instance.player.last_name }}
+            </td>
+        
+            {# now your visible batting fields #}
             {% for field in b_form.visible_fields %}
               <td>{{ field }}</td>
             {% endfor %}
+        
+            {# and your visible pitch/def fields #}
             {% for field in p_form.visible_fields %}
               <td>{{ field }}</td>
             {% endfor %}
           </tr>
-        {% endfor %}
+        {% endfor %}      
       </tbody>
     </table>
   {% endwith %}

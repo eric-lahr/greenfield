@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}Pick Competitions{% endblock %}
+{% block content %}
+  <h2>Select Competitions</h2>
+  <form method="get">
+    {{ form.as_p }}
+    <button type="submit" class="btn btn-primary">
+      Show Competition Menu
+    </button>
+  </form>
+{% endblock %}

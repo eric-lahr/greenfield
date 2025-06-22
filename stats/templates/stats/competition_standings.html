@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Standings{% endblock %}
+
+{% block content %}
+<h2>Standings</h2>
+<p>
+  {% for c in competitions %}
+    <span class="badge bg-secondary">{{ c.name }}</span>
+  {% endfor %}
+</p>
+<table class="table table-sm">
+  <thead>
+    <tr>
+      <th>Team</th><th>Wins</th><th>Losses</th><th>Ties</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in standings %}
+    <tr>
+      <td>{{ row.team__first_name }} {{ row.team__team_name }}</td>
+      <td>{{ row.wins }}</td>
+      <td>{{ row.losses }}</td>
+      <td>{{ row.ties }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+<a href="{% url 'stats:competition-menu' %}?{{ qs }}" class="btn btn-link">
+  ← Back to Competition Menu
+</a>
+{% endblock %}

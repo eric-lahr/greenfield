@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Team Stats{% endblock %}
+
+{% block content %}
+<h2>Team Stats</h2>
+<p>
+  {% for c in competitions %}
+    <span class="badge bg-secondary">{{ c.name }}</span>
+  {% endfor %}
+</p>
+<table class="table table-sm">
+  <table class="table table-sm">
+    <thead>
+      <tr>
+        <th>Team</th><th>AB</th><th>H</th><th>R</th><th>RBI</th><th>HR</th>
+        <th>BB</th><th>K</th><th>SB</th><th>CS</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in stats %}
+      <tr>
+        <!-- use the annotated team_name -->
+        <td>{{ row.team_name }}</td>
+        <td>{{ row.ab }}</td>
+        <td>{{ row.h }}</td>
+        <td>{{ row.r }}</td>
+        <td>{{ row.rbi }}</td>
+        <td>{{ row.hr }}</td>
+        <td>{{ row.bb }}</td>
+        <td>{{ row.k }}</td>
+        <td>{{ row.sb }}</td>
+        <td>{{ row.cs }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>  
+<a href="{% url 'stats:competition-menu' %}?{{ qs }}" class="btn btn-link">
+  ← Back to Competition Menu
+</a>
+{% endblock %}

@@ -15,4 +15,11 @@ urlpatterns = [
     path('games/<int:game_id>/substitutions/', views.enter_substitutions, name='enter-substitutions'),
     path('games/<int:game_id>/inning-scores/', views.enter_inning_scores, name='enter-inning-scores'),
     path('games/<int:game_id>/enhanced-stats/', views.enter_enhanced_stats, name='enter-enhanced-stats'),
+    path('competitions/select/', views.competition_select_view, name='competition-select'),
+    path('competitions/menu/', views.competition_menu_view, name='competition-menu'),
+    path('competitions/stats', views.competition_player_stats_view, name='competition-player-stats'),
+    path('competitions/team-stats/', views.competition_team_stats_view, name='competition-team-stats'),
+    path('competitions/leaders/', views.competition_leaders_view, name='competition-leaders'),
+    path('competition/standings/', views.competition_standings_view, name='competition-standings'),
+    path('competition/games', views.competition_games_view, name='competition-games')
 ]

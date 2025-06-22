@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}League Leaders{% endblock %}
+
+{% block content %}
+<h2>League Leaders (min 10 AB)</h2>
+<p>
+  {% for c in competitions %}
+    <span class="badge bg-secondary">{{ c.name }}</span>
+  {% endfor %}
+</p>
+<table class="table table-sm">
+  <thead>
+    <tr>
+      <th>Player</th><th>AB</th><th>H</th><th>AVG</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in leaders %}
+    <tr>
+      <td>{{ row.player__first_name }} {{ row.player__last_name }}</td>
+      <td>{{ row.ab }}</td>
+      <td>{{ row.h }}</td>
+      <td>{{ row.avg|floatformat:3 }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+<a href="{% url 'stats:competition-menu' %}?{{ qs }}" class="btn btn-link">
+  ← Back to Competition Menu
+</a>
+{% endblock %}

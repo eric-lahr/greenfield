@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Games{% endblock %}
+
+{% block content %}
+<h2>Games</h2>
+<p>
+  {% for c in competitions %}
+    <span class="badge bg-secondary">{{ c.name }}</span>
+  {% endfor %}
+</p>
+<table class="table table-sm">
+  <thead>
+    <tr>
+      <th>Date</th><th>Matchup</th><th>Score</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for g in games %}
+    <tr>
+      <td>{{ g.date_played }}</td>
+      <td>{{ g.away_team }} @ {{ g.home_team }}</td>
+      <td>{{ g.away_score }}–{{ g.home_score }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+<a href="{% url 'stats:competition-menu' %}?{{ qs }}" class="btn btn-link">
+  ← Back to Competition Menu
+</a>
+{% endblock %}
