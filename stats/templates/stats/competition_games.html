@@ -11,15 +11,32 @@
 <table class="table table-sm">
   <thead>
     <tr>
-      <th>Date</th><th>Matchup</th><th>Score</th>
+      <th>Date</th><th>Matchup</th><th>Score</th><th>Status</th>
     </tr>
   </thead>
   <tbody>
-    {% for g in games %}
+    {% for game in games %}
     <tr>
-      <td>{{ g.date_played }}</td>
-      <td>{{ g.away_team }} @ {{ g.home_team }}</td>
-      <td>{{ g.away_score }}–{{ g.home_score }}</td>
+      <td>
+        <a href="{% url 'stats:game-boxscore' game.id %}">
+          {{ game.date_played }}
+        </a>
+      </td>
+      <td>
+        <a href="{% url 'stats:game-boxscore' game.id %}">
+          {{ game.away_team }} @ {{ game.home_team }}
+        </a>
+      </td>
+      <td>
+        <a href="{% url 'stats:game-boxscore' game.id %">
+          {{ game.away_score }} - {{ game.home_score }}
+        </a>
+      </td>
+      <td>
+        <a href="{% url 'stats:game-boxscore' game.id %}">
+          {{ game.status }}
+        </a>
+      </td>
     </tr>
     {% endfor %}
   </tbody>
