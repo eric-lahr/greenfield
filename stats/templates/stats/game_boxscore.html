@@ -33,7 +33,7 @@
 
   <!-- Away Batting -->
   <h4>{{ game.away_team }} Batting</h4>
-  <table class="table table-sm mb-4">
+  <table class="table table-sm mb-2">
     <thead>
       <tr>
         <th>#</th><th>Player</th><th>AB</th><th>H</th><th>R</th><th>RBI</th>
@@ -44,16 +44,40 @@
       {% for sl in away_batters %}
       <tr>
         <td>{{ forloop.counter }}</td>
-        <td>{{ sl.player }}</td>
-        <td>{{ sl.ab }}</td><td>{{ sl.h }}</td><td>{{ sl.r }}</td>
-        <td>{{ sl.rbi }}</td><td>{{ sl.bb }}</td><td>{{ sl.so }}</td>
+        <td>{{ sl.player.first_name }} {{ sl.player.last_name }}</td>
+        <td>{{ sl.ab }}</td>
+        <td>{{ sl.h }}</td>
+        <td>{{ sl.r }}</td>
+        <td>{{ sl.rbi }}</td>
+        <td>{{ sl.bb }}</td>
+        <td>{{ sl.so }}</td>
         <td>{{ sl.avg|floatformat:3 }}</td>
         <td>{{ sl.obp|floatformat:3 }}</td>
         <td>{{ sl.slg|floatformat:3 }}</td>
       </tr>
+      {% for sub in subs %}
+        {% if sub.team.pk == game.away_team.pk and sub.player_out.serial == sl.player.serial %}
+      <tr class="table-secondary">
+        <td>&#8627;</td>
+        <td colspan="10"><em>{{ sub.player_in }} ({{ sub.position }}) entered in {{ sub.inning }}</em></td>
+      </tr>
+        {% endif %}
+      {% endfor %}
       {% endfor %}
     </tbody>
   </table>
+  <div class="mb-4">
+    <strong>Doubles:</strong>
+    {% if away_doubles %}{{ away_doubles|join:", " }}{% else %}None{% endif %}<br>
+    <strong>Triples:</strong>
+    {% if away_triples %}{{ away_triples|join:", " }}{% else %}None{% endif %}<br>
+    <strong>Home Runs:</strong>
+    {% if away_hr %}{{ away_hr|join:", " }}{% else %}None{% endif %}<br>
+    <strong>Stolen Bases:</strong>
+    {% if away_sb %}{{ away_sb|join:", " }}{% else %}None{% endif %}
+    <strong>Caught Stealing:</strong>
+    {% if away_cs %}{{ away_cs|join:", " }}{% else %}None{% endif %}
+  </div>
 
   <!-- Away Pitching -->
   <h4>{{ game.away_team }} Pitching</h4>
@@ -65,24 +89,29 @@
       </tr>
     </thead>
     <tbody>
-      {% for sl in pitchers %}
-        {% if sl.team.pk == game.away_team.pk %}
+      {% for sl in away_pitchers %}
       <tr>
-        <td>{{ sl.player }}</td>
+        <td>
+            {{ sl.player.first_name }} {{ sl.player.last_name }}
+            {% if sl.decision %}
+            ({{ sl.get_decision_display|lower }})
+            {% endif %}
+        </td>
         <td>{{ sl.ip_outs|floatformat:0 }} outs ({{ sl.innings_pitched|floatformat:2 }} IP)</td>
-        <td>{{ sl.h_allowed }}</td><td>{{ sl.er }}</td>
-        <td>{{ sl.bb_allowed }}</td><td>{{ sl.k_thrown }}</td>
+        <td>{{ sl.h_allowed }}</td>
+        <td>{{ sl.er }}</td>
+        <td>{{ sl.bb_allowed }}</td>
+        <td>{{ sl.k_thrown }}</td>
         <td>{{ sl.era|floatformat:2 }}</td>
         <td>{{ sl.whip|floatformat:2 }}</td>
       </tr>
-        {% endif %}
       {% endfor %}
     </tbody>
   </table>
 
   <!-- Home Batting -->
   <h4>{{ game.home_team }} Batting</h4>
-  <table class="table table-sm mb-4">
+  <table class="table table-sm mb-2">
     <thead>
       <tr>
         <th>#</th><th>Player</th><th>AB</th><th>H</th><th>R</th><th>RBI</th>
@@ -93,16 +122,40 @@
       {% for sl in home_batters %}
       <tr>
         <td>{{ forloop.counter }}</td>
-        <td>{{ sl.player }}</td>
-        <td>{{ sl.ab }}</td><td>{{ sl.h }}</td><td>{{ sl.r }}</td>
-        <td>{{ sl.rbi }}</td><td>{{ sl.bb }}</td><td>{{ sl.so }}</td>
+        <td>{{ sl.player.first_name }} {{ sl.player.last_name }}</td>
+        <td>{{ sl.ab }}</td>
+        <td>{{ sl.h }}</td>
+        <td>{{ sl.r }}</td>
+        <td>{{ sl.rbi }}</td>
+        <td>{{ sl.bb }}</td>
+        <td>{{ sl.so }}</td>
         <td>{{ sl.avg|floatformat:3 }}</td>
         <td>{{ sl.obp|floatformat:3 }}</td>
         <td>{{ sl.slg|floatformat:3 }}</td>
       </tr>
+      {% for sub in subs %}
+        {% if sub.team.pk == game.home_team.pk and sub.player_out.serial == sl.player.serial %}
+      <tr class="table-secondary">
+        <td>&#8627;</td>
+        <td colspan="10"><em>{{ sub.player_in }} ({{ sub.position }}) entered in {{ sub.inning }}</em></td>
+      </tr>
+        {% endif %}
+      {% endfor %}
       {% endfor %}
     </tbody>
   </table>
+  <div class="mb-4">
+    <strong>Doubles:</strong>
+    {% if home_doubles %}{{ home_doubles|join:", " }}{% else %}None{% endif %}<br>
+    <strong>Triples:</strong>
+    {% if home_triples %}{{ home_triples|join:", " }}{% else %}None{% endif %}<br>
+    <strong>Home Runs:</strong>
+    {% if home_hr %}{{ home_hr|join:", " }}{% else %}None{% endif %}<br>
+    <strong>Stolen Bases:</strong>
+    {% if home_sb %}{{ home_sb|join:", " }}{% else %}None{% endif %}
+    <strong>Caught STealing:</strong>
+    {% if home_cs %}{{ home_cs|join:", " }}{% else %}None{% endif %}
+  </div>
 
   <!-- Home Pitching -->
   <h4>{{ game.home_team }} Pitching</h4>
@@ -114,17 +167,17 @@
       </tr>
     </thead>
     <tbody>
-      {% for sl in pitchers %}
-        {% if sl.team.pk == game.home_team.pk %}
+      {% for sl in home_pitchers %}
       <tr>
-        <td>{{ sl.player }}</td>
+        <td>{{ sl.player.first_name }} {{ sl.player.last_name }}</td>
         <td>{{ sl.ip_outs|floatformat:0 }} outs ({{ sl.innings_pitched|floatformat:2 }} IP)</td>
-        <td>{{ sl.h_allowed }}</td><td>{{ sl.er }}</td>
-        <td>{{ sl.bb_allowed }}</td><td>{{ sl.k_thrown }}</td>
+        <td>{{ sl.h_allowed }}</td>
+        <td>{{ sl.er }}</td>
+        <td>{{ sl.bb_allowed }}</td>
+        <td>{{ sl.k_thrown }}</td>
         <td>{{ sl.era|floatformat:2 }}</td>
         <td>{{ sl.whip|floatformat:2 }}</td>
       </tr>
-        {% endif %}
       {% endfor %}
     </tbody>
   </table>

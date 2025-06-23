@@ -782,20 +782,16 @@ def competition_games_view(request):
 def game_boxscore_view(request, game_id):
     game = get_object_or_404(Game, pk=game_id)
 
-    # seed innings (optional) …
+    # — seed and fetch inning scores as before…
     for team in (game.away_team, game.home_team):
         for inn in range(1, 10):
             InningScore.objects.get_or_create(
                 game=game, team=team, inning=inn, defaults={'runs': 0}
             )
-
     away_scores = list(InningScore.objects.filter(
-        game=game, team=game.away_team
-    ).order_by('inning'))
+        game=game, team=game.away_team).order_by('inning'))
     home_scores = list(InningScore.objects.filter(
-        game=game, team=game.home_team
-    ).order_by('inning'))
-
+        game=game, team=game.home_team).order_by('inning'))
     away_total_runs = sum(s.runs for s in away_scores)
     home_total_runs = sum(s.runs for s in home_scores)
     away_total_hits = sum(sl.h for sl in PlayerStatLine.objects.filter(
@@ -807,50 +803,109 @@ def game_boxscore_view(request, game_id):
     home_total_errs = sum(sl.e for sl in PlayerStatLine.objects.filter(
         game=game, team=game.home_team))
 
-    # pull all statlines for the game
-    statlines = list(PlayerStatLine.objects.filter(game=game).select_related(
-        'player', 'team'
-    ))
+    # — fetch all statlines once —
+    statlines = list(PlayerStatLine.objects.filter(game=game)
+                     .select_related('player','team'))
 
-    # filter pure batters and compute rate stats on each
-    batters = [sl for sl in statlines if (sl.ab + sl.bb) > 0]
-    for sl in batters:
-        sl.avg = sl.h / sl.ab if sl.ab else 0
-        obp_denom = sl.ab + sl.bb + sl.hbp + sl.sf
-        sl.obp = (sl.h + sl.bb + sl.hbp) / obp_denom if obp_denom else 0
-        singles = sl.h - sl.doubles - sl.triples - sl.hr
-        sl.slg = ((singles + sl.doubles*2 + sl.triples*3 + sl.hr*4)
-                  / sl.ab) if sl.ab else 0
-
-    # filter pitchers and compute IP, ERA, WHIP
-    pitchers = [sl for sl in statlines if sl.ip_outs > 0]
-    for sl in pitchers:
-        sl.innings_pitched = sl.ip_outs / 3.0
-        sl.era = (sl.er * 9.0 / sl.innings_pitched) if sl.innings_pitched else 0
-        sl.whip = ((sl.h_allowed + sl.bb_allowed) / sl.innings_pitched) \
-                  if sl.innings_pitched else 0
-
-    # ——— NEW: batting order ———
-    from stats.models import LineupEntry
-    away_lineup = LineupEntry.objects.filter(
+    # — build away/home batters in batting order —
+    lineup_away = LineupEntry.objects.filter(
         game=game, team=game.away_team
     ).order_by('batting_order').select_related('player')
-    home_lineup = LineupEntry.objects.filter(
+    lineup_home = LineupEntry.objects.filter(
         game=game, team=game.home_team
     ).order_by('batting_order').select_related('player')
 
-    # build ordered lists by matching lineup entries to batters
-    away_batters = []
-    for le in away_lineup:
-        sl = next((x for x in batters if x.player_id == le.player_id), None)
-        if sl:
-            away_batters.append(sl)
+    # only batters (had AB or BB)
+    batters = {sl.player.serial: sl for sl in statlines if sl.ab + sl.bb > 0}
+    away_batters = [batters[le.player.serial] for le in lineup_away if le.player.serial in batters]
+    home_batters = [batters[le.player.serial] for le in lineup_home if le.player.serial in batters]
 
-    home_batters = []
-    for le in home_lineup:
-        sl = next((x for x in batters if x.player_id == le.player_id), None)
-        if sl:
-            home_batters.append(sl)
+    # compute AVG/OBP/SLG on each batter
+    for sl in batters.values():
+        sl.avg = sl.h/sl.ab if sl.ab else 0
+        denom = sl.ab + sl.bb + sl.hbp + sl.sf
+        sl.obp = (sl.h+sl.bb+sl.hbp)/denom if denom else 0
+        singles = sl.h - sl.doubles - sl.triples - sl.hr
+        sl.slg = (singles + 2*sl.doubles + 3*sl.triples + 4*sl.hr)/sl.ab if sl.ab else 0
+        away_doubles = [
+            f"{sl.player.last_name}{f'({sl.doubles})' if sl.doubles>1 else ''}"
+            for sl in away_batters if sl.doubles>0
+        ]
+        home_doubles = [
+            f"{sl.player.last_name}{f'({sl.doubles})' if sl.doubles>1 else ''}"
+            for sl in home_batters if sl.doubles>0
+        ]
+        away_triples = [
+            f"{sl.player.last_name}{f'({sl.triples})' if sl.triples>1 else ''}"
+            for sl in away_batters if sl.triples>0
+        ]
+        home_triples = [
+            f"{sl.player.last_name}{f'({sl.triples})' if sl.triples>1 else ''}"
+            for sl in home_batters if sl.triples>0
+        ]
+        away_hr = [
+            f"{sl.player.last_name}{f'({sl.hr})' if sl.hr>1 else ''}"
+            for sl in away_batters if sl.hr>0
+        ]
+        home_hr = [
+            f"{sl.player.last_name}{f'({sl.hr})' if sl.hr>1 else ''}"
+            for sl in home_batters if sl.hr>0
+        ]
+        away_sb = [
+            f"{sl.player.last_name}{f'({sl.sb})' if sl.sb>1 else ''}"
+            for sl in away_batters if sl.sb>0
+        ]
+        home_sb = [
+            f"{sl.player.last_name}{f'({sl.sb})' if sl.sb>1 else ''}"
+            for sl in home_batters if sl.sb>0
+        ]
+        away_cs = [
+            f"{sl.player.last_name}{f'({sl.cs})' if sl.cs>1 else ''}"
+            for sl in away_batters if sl.cs>0
+        ]
+        home_cs = [
+            f"{sl.player.last_name}{f'({sl.cs})' if sl.cs>1 else ''}"
+            for sl in home_batters if sl.cs>0
+        ]
+
+    # — fetch all pitcher statlines & compute IP/ERA/WHIP —
+    all_pitchers = [sl for sl in statlines if sl.ip_outs > 0]
+    for sl in all_pitchers:
+        sl.innings_pitched = sl.ip_outs / 3.0
+        sl.era = (sl.er * 9.0 / sl.innings_pitched) if sl.innings_pitched else 0
+        sl.whip = ((sl.h_allowed + sl.bb_allowed) / sl.innings_pitched) if sl.innings_pitched else 0
+
+    # — fetch pitcher‐substitutions & position‐player substitutions —
+    subs = Substitution.objects.filter(game=game).select_related(
+        'team','player_in','player_out'
+    ).order_by('inning')
+
+    # group by player_out for position subs
+    subs_by_out = {}
+    for sub in subs:
+        if sub.position != 'P':  # position player sub
+            subs_by_out.setdefault(sub.player_out.serial, []).append(sub)
+
+    # pitcher subs in order
+    away_p_subs = [s for s in subs if s.team == game.away_team and s.position == 'P']
+    home_p_subs = [s for s in subs if s.team == game.home_team and s.position == 'P']
+
+    def order_pitchers(team, p_subs):
+        roster = [sl for sl in all_pitchers if sl.team == team]
+        ordered = []
+        # starting pitcher = one not in any p_subs.player_in
+        starters = [sl for sl in roster if sl.player not in [s.player_in for s in p_subs]]
+        if starters:
+            ordered.append(starters[0])
+        # then each relief in sub order
+        for s in p_subs:
+            rel = next((sl for sl in roster if sl.player == s.player_in), None)
+            if rel:
+                ordered.append(rel)
+        return ordered
+
+    away_pitchers = order_pitchers(game.away_team, away_p_subs)
+    home_pitchers = order_pitchers(game.home_team, home_p_subs)
 
     return render(request, 'stats/game_boxscore.html', {
         'game':             game,
@@ -864,5 +919,17 @@ def game_boxscore_view(request, game_id):
         'home_total_errs':  home_total_errs,
         'away_batters':     away_batters,
         'home_batters':     home_batters,
-        'pitchers':         pitchers,
+        'away_pitchers':    away_pitchers,
+        'home_pitchers':    home_pitchers,
+        'subs_by_out':      subs_by_out,
+        'away_doubles':     away_doubles,
+        'home_doubles':     home_doubles,
+        'away_triples':     away_triples,
+        'home_triples':     home_triples,
+        'home_hr':          home_hr,
+        'away_hr':          away_hr,
+        'home_sb':          home_sb,
+        'away_sb':          away_sb,
+        'home_cs':          home_cs,
+        'away_cs':          away_cs
     })
