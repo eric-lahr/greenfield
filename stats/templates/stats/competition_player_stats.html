@@ -1,26 +1,117 @@
+{# templates/stats/competition_player_stats.html #}
 {% extends "base.html" %}
-{% block title %}Player Stats{% endblock %}
 {% block content %}
-  <h2>Player Stats</h2>
-  <table class="table">
-    <thead>
-      <tr>
-        <th>Player</th><th>AB</th><th>H</th><th>RBI</th><th>HR</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for row in stats %}
-        <tr>
-          <td>{{ row.player__first_name }} {{ row.player__last_name }}</td>
-          <td>{{ row.ab }}</td>
-          <td>{{ row.h }}</td>
-          <td>{{ row.rbi }}</td>
-          <td>{{ row.hr }}</td>
-        </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  <a href="{% url 'stats:competition-menu' %}?{{ qs }}" class="btn btn-link">
-    ← Back to Competition Menu
-  </a>
+<div class="container">
+  <h2>Player Stats – {{ competitions|join:", " }}</h2>
+
+  <ul class="nav nav-tabs mb-3" role="tablist">
+    <li class="nav-item" role="presentation">
+      <a class="nav-link active"
+         data-toggle="tab" href="#offense-pane"
+         role="tab">Batting</a>
+    </li>
+    <li class="nav-item" role="presentation">
+      <a class="nav-link"
+         data-toggle="tab" href="#pitching-pane"
+         role="tab">Pitching</a>
+    </li>
+    <li class="nav-item" role="presentation">
+      <a class="nav-link"
+         data-toggle="tab" href="#defense-pane"
+         role="tab">Defense</a>
+    </li>
+  </ul>
+  <form method="get" class="mb-3">
+    <input type="hidden" name="competitions" value="{{ competitions.0.id }}">
+    <div class="form-inline">
+      <label for="team-select" class="mr-2">Team:</label>
+      <select name="team" id="team-select" class="form-control mr-2">
+        <option value="">All Teams</option>
+        {% for team in played_teams %}
+        <option value="{{ team.serial }}" {% if team.serial|stringformat:"s" == selected_team %}selected{% endif %}>
+          {{ team.first_name }} {{ team.team_name }}
+        </option>
+        {% endfor %}
+      </select>
+      <button type="submit" class="btn btn-primary btn-sm">Filter</button>
+    </div>
+  </form>  
+  <div class="tab-content">
+    <!-- Batting -->
+    <div class="tab-pane fade show active" id="offense-pane" role="tabpanel">
+      <table class="table table-sm">
+        <thead>
+          <tr>
+            <th>Name</th><th>G</th><th>AB</th><th>H</th><th>R</th><th>RBI</th>
+            <th>HR</th><th>BB</th><th>SO</th><th>SB</th><th>CS</th>
+            <th>AVG</th><th>OBP</th><th>SLG</th><th>OPS</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in offense_stats %}
+          <tr>
+            <td>{{ p.name }}</td>
+            <td>{{ p.games }}</td>
+            <td>{{ p.ab }}</td><td>{{ p.h }}</td><td>{{ p.r }}</td>
+            <td>{{ p.rbi }}</td><td>{{ p.hr }}</td><td>{{ p.bb }}</td>
+            <td>{{ p.so }}</td><td>{{ p.sb }}</td><td>{{ p.cs }}</td>
+            <td>{{ p.avg|floatformat:3 }}</td>
+            <td>{{ p.obp|floatformat:3 }}</td>
+            <td>{{ p.slg|floatformat:3 }}</td>
+            <td>{{ p.ops|floatformat:3 }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Pitching -->
+    <div class="tab-pane fade" id="pitching-pane" role="tabpanel">
+      <table class="table table-sm">
+        <thead>
+          <tr>
+            <th>Name</th><th>G</th><th>W</th><th>L</th><th>S</th>
+            <th>IP</th><th>ER</th><th>H</th><th>BB</th><th>SO</th>
+            <th>ERA</th><th>WHIP</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in pitching_stats %}
+          <tr>
+            <td>{{ p.name }}</td>
+            <td>{{ p.games }}</td><td>{{ p.wins }}</td><td>{{ p.losses }}</td>
+            <td>{{ p.saves }}</td><td>{{ p.innings_pitched|floatformat:2 }}</td>
+            <td>{{ p.er }}</td><td>{{ p.h_allowed }}</td>
+            <td>{{ p.bb_allowed }}</td><td>{{ p.k_thrown }}</td>
+            <td>{{ p.era|floatformat:2 }}</td>
+            <td>{{ p.whip|floatformat:2 }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Defense -->
+    <div class="tab-pane fade" id="defense-pane" role="tabpanel">
+      <table class="table table-sm">
+        <thead>
+          <tr>
+            <th>Name</th><th>Chances</th><th>PO</th><th>A</th>
+            <th>E</th><th>PB</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in defense_stats %}
+          <tr>
+            <td>{{ p.name }}</td>
+            <td>{{ p.chances }}</td>
+            <td>{{ p.po }}</td><td>{{ p.a }}</td>
+            <td>{{ p.e }}</td><td>{{ p.pb }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
 {% endblock %}

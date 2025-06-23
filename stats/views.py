@@ -6,7 +6,8 @@ from django.urls import reverse_lazy, reverse
 from django.forms import formset_factory
 from django.contrib import messages
 from django.db.models import (
-    Q, Sum, F, Count, Value, FloatField, ExpressionWrapper
+    Q, Sum, F, Count, Value, FloatField, ExpressionWrapper,
+    Case, When
     )
 from django.db.models.functions import Concat
 from urllib.parse import urlencode
@@ -15,6 +16,7 @@ from .models import (
     Substitution
     )
 from players.models import Players
+from teams.models import Teams
 from .forms import (
     CompetitionForm, GameForm, LineupEntryForm, SubstitutionForm,
     InningScoreForm, BattingStatForm, PitchDefStatForm,
@@ -463,88 +465,256 @@ def competition_menu_view(request):
 
 
 def competition_player_stats_view(request):
-    comp_ids = request.GET.getlist('competitions')
-    qs = PlayerStatLine.objects.filter(game__competition__in=comp_ids)
-    stats = (
-        qs.values('player__first_name', 'player__last_name')
-          .annotate(ab=Sum('ab'), h=Sum('h'), rbi=Sum('rbi'), hr=Sum('hr'))
-          .order_by('-h')
+    comp_ids     = request.GET.getlist('competitions')
+    competitions = get_list_or_404(Competition, pk__in=comp_ids)
+
+    # only teams in this competition
+    played_teams = Teams.objects.filter(
+        Q(home_games__competition__in=competitions) |
+        Q(away_games__competition__in=competitions)
+    ).distinct()
+
+    # optional team filter
+    team_serial = request.GET.get('team')
+
+    # base queryset of stat lines, optionally filtered by team
+    base_qs = PlayerStatLine.objects.filter(
+        game__competition__in=competitions,
+        team__in=played_teams
     )
+    if team_serial:
+        base_qs = base_qs.filter(team__serial=team_serial)
+
+    # ——— Batters ———
+    offense_stats = (
+        base_qs
+        .values('player__serial', 'player__first_name', 'player__last_name')
+        .annotate(
+            player_id=F('player__serial'),
+            name=Concat(F('player__first_name'), Value(' '), F('player__last_name')),
+            games=Count('game', distinct=True),
+            ab=Sum('ab'),
+            bb=Sum('bb'),
+            h=Sum('h'),
+            r=Sum('r'),
+            rbi=Sum('rbi'),
+            hr=Sum('hr'),
+            so=Sum('so'),
+            sb=Sum('sb'),
+            cs=Sum('cs'),
+            hbp=Sum('hbp'),
+            doubles=Sum('doubles'),
+            triples=Sum('triples'),
+            dp=Sum('dp'),
+            sf=Sum('sf'),
+        )
+        # drop players with no AB and no BB
+        .filter(Q(ab__gt=0) | Q(bb__gt=0))
+        .annotate(
+            avg=Case(
+                When(ab__gt=0,
+                     then=ExpressionWrapper(F('h') * 1.0 / F('ab'),
+                                            output_field=FloatField())),
+                default=Value(0),
+                output_field=FloatField()
+            ),
+            obp_denom=ExpressionWrapper(
+                F('ab') + F('bb') + F('hbp') + F('sf'),
+                output_field=FloatField()
+            )
+        )
+        .annotate(
+            obp=Case(
+                When(obp_denom__gt=0,
+                     then=ExpressionWrapper(
+                         (F('h') + F('bb') + F('hbp')) * 1.0 / F('obp_denom'),
+                         output_field=FloatField()
+                     )
+                ),
+                default=Value(0),
+                output_field=FloatField()
+            ),
+            slg=Case(
+                When(ab__gt=0,
+                     then=ExpressionWrapper(
+                         (
+                             (F('h') - F('doubles') - F('triples') - F('hr'))
+                             + 2 * F('doubles')
+                             + 3 * F('triples')
+                             + 4 * F('hr')
+                         ) * 1.0 / F('ab'),
+                         output_field=FloatField()
+                     )
+                ),
+                default=Value(0),
+                output_field=FloatField()
+            ),
+            ops=ExpressionWrapper(F('obp') + F('slg'), output_field=FloatField()),
+        )
+        .order_by('-games', 'player__last_name')
+    )
+
+    # ——— Pitchers ———
+    pitching_stats = (
+        base_qs
+        .filter(ip_outs__gt=0)
+        .values('player__serial', 'player__first_name', 'player__last_name')
+        .annotate(
+            player_id=F('player__serial'),
+            name=Concat(F('player__first_name'), Value(' '), F('player__last_name')),
+            games=Count('game', distinct=True),
+            wins=Sum(Case(When(decision='W', then=1), default=0)),
+            losses=Sum(Case(When(decision='L', then=1), default=0)),
+            saves=Sum(Case(When(decision='S', then=1), default=0)),
+            ip_outs=Sum('ip_outs'),
+            er=Sum('er'),
+            h_allowed=Sum('h_allowed'),
+            bb_allowed=Sum('bb_allowed'),
+            k_thrown=Sum('k_thrown'),
+        )
+        .annotate(
+            innings_pitched=ExpressionWrapper(F('ip_outs') * 1.0 / 3.0,
+                                              output_field=FloatField())
+        )
+        .annotate(
+            era=ExpressionWrapper(F('er') * 9.0 / F('innings_pitched'),
+                                  output_field=FloatField()),
+            whip=ExpressionWrapper(
+                (F('bb_allowed') + F('h_allowed')) * 1.0 / F('innings_pitched'),
+                output_field=FloatField()
+            ),
+        )
+        .order_by('-innings_pitched')
+    )
+
+    # ——— Defense ———
+    defense_stats = (
+        base_qs
+        .values('player__serial', 'player__first_name', 'player__last_name')
+        .annotate(
+            player_id=F('player__serial'),
+            name=Concat(F('player__first_name'), Value(' '), F('player__last_name')),
+            po=Sum('po'),
+            a=Sum('a'),
+            e=Sum('e'),
+            pb=Sum('pb'),
+        )
+        .annotate(
+            chances=F('po') + F('a') + F('e'),
+        )
+        .order_by('-chances', 'player__last_name')
+    )
+
     return render(request, 'stats/competition_player_stats.html', {
-        'stats': stats,
-        'qs': request.GET.urlencode(),
+        'competitions':  competitions,
+        'played_teams':  played_teams,
+        'selected_team': team_serial,
+        'offense_stats': offense_stats,
+        'pitching_stats': pitching_stats,
+        'defense_stats': defense_stats,
+        'qs':            request.GET.urlencode(),
     })
 
 
 def competition_team_stats_view(request):
-    comp_ids = request.GET.getlist('competitions')
-    competitions = get_list_or_404(Competition, pk__in=comp_ids)
+    comp_ids      = request.GET.getlist('competitions')
+    competitions  = get_list_or_404(Competition, pk__in=comp_ids)
 
-    # 1) Sum up all the raw counting stats (including the ones we’d lost)
-    qs = (
+    # ——— Offense ———
+    base_qs = (
         PlayerStatLine.objects
         .filter(game__competition__in=competitions)
-        .values(
-            'team__serial',
-            'team__first_name',
-            'team__team_name',
-        )
+        .values('team__serial','team__first_name','team__team_name')
         .annotate(
             team_serial=F('team__serial'),
-            team_name=Concat(
-                F('team__first_name'),
-                Value(' '),
-                F('team__team_name')
-            ),
-
-            # raw totals
-            ab=Sum('ab'),
-            h=Sum('h'),
-            r=Sum('r'),           # Runs
-            rbi=Sum('rbi'),       # RBI
-            hr=Sum('hr'),
-            bb=Sum('bb'),
-            so=Sum('so'),         # Strikeouts
-            hbp=Sum('hbp'),
-            doubles=Sum('doubles'),
-            triples=Sum('triples'),
-            sb=Sum('sb'),         # Stolen bases
-            cs=Sum('cs'),         # Caught stealing
-            dp=Sum('dp'),
-            sf=Sum('sf'),
+            team_name=Concat(F('team__first_name'), Value(' '), F('team__team_name')),
+            ab=Sum('ab'), h=Sum('h'), r=Sum('r'), rbi=Sum('rbi'),
+            hr=Sum('hr'), bb=Sum('bb'), so=Sum('so'), sb=Sum('sb'),
+            cs=Sum('cs'), hbp=Sum('hbp'), doubles=Sum('doubles'),
+            triples=Sum('triples'), dp=Sum('dp'), sf=Sum('sf'),
         )
     )
-
-    # 2) Build rate stats (AVG, OBP, SLG) and then OPS
-    stats = qs.annotate(
-        avg=ExpressionWrapper(
-            F('h') * 1.0 / F('ab'),
-            output_field=FloatField()
-        ),
-        obp=ExpressionWrapper(
-            (F('h') + F('bb') + F('hbp')) * 1.0 /
-            (F('ab') + F('bb') + F('hbp') + F('sf')),
-            output_field=FloatField()
-        ),
+    offense_stats = base_qs.annotate(
+        avg=ExpressionWrapper(F('h')*1.0/F('ab'), output_field=FloatField()),
+        obp=ExpressionWrapper((F('h')+F('bb')+F('hbp'))*1.0/
+                              (F('ab')+F('bb')+F('hbp')+F('sf')),
+                              output_field=FloatField()),
         slg=ExpressionWrapper(
-            (
-                (F('h') - F('doubles') - F('triples') - F('hr'))
-                + F('doubles') * 2
-                + F('triples') * 3
-                + F('hr') * 4
-            ) * 1.0 / F('ab'),
-            output_field=FloatField()
-        ),
-        ops=ExpressionWrapper(
-            F('obp') + F('slg'),
-            output_field=FloatField()
-        ),
+            ((F('h')-F('doubles')-F('triples')-F('hr'))
+             +F('doubles')*2+F('triples')*3+F('hr')*4)*1.0/F('ab'),
+            output_field=FloatField()),
+        ops=ExpressionWrapper(F('obp') + F('slg'), output_field=FloatField()),
     ).order_by('-ops')
 
+    # ——— Pitching ———
+    pitching_stats = (
+        PlayerStatLine.objects
+        .filter(game__competition__in=competitions)
+        .values('team__serial', 'team__first_name', 'team__team_name')
+        .annotate(
+            team_serial=F('team__serial'),
+            team_name=Concat(F('team__first_name'), Value(' '), F('team__team_name')),
+            ip_outs=Sum('ip_outs'),
+            er=Sum('er'),
+            h_allowed=Sum('h_allowed'),
+            bb_allowed=Sum('bb_allowed'),
+            k_thrown=Sum('k_thrown'),
+            hb=Sum('hb'),
+            hra=Sum('hra'),
+            balk=Sum('balk'),
+            wp=Sum('wp'),
+            ibb=Sum('ibb'),
+        )
+        # convert outs into fractional innings (3 outs = 1 inning)
+        .annotate(
+            innings_pitched=ExpressionWrapper(
+                F('ip_outs') * 1.0 / 3.0,
+                output_field=FloatField()
+            )
+        )
+        # now compute ERA and WHIP using that true innings_pitched
+        .annotate(
+            era=ExpressionWrapper(
+                F('er') * 9.0 / F('innings_pitched'),
+                output_field=FloatField()
+            ),
+            whip=ExpressionWrapper(
+                (F('bb_allowed') + F('h_allowed')) * 1.0 / F('innings_pitched'),
+                output_field=FloatField()
+            ),
+        )
+        .order_by('team_name')
+    )
+
+    # ——— Defense ———
+    defense_stats = (
+        PlayerStatLine.objects
+        .filter(game__competition__in=competitions)
+        .values('team__serial','team__first_name','team__team_name')
+        .annotate(
+            team_serial=F('team__serial'),
+            team_name=Concat(F('team__first_name'), Value(' '), F('team__team_name')),
+            po=Sum('po'),
+            a=Sum('a'),
+            e=Sum('e'),
+            pb=Sum('pb'),
+            dp=Sum('dp'),
+        )
+        .annotate(
+            fld_pct=ExpressionWrapper(
+                (F('po') + F('a'))*1.0/(F('po') + F('a') + F('e')),
+                output_field=FloatField()
+            )
+        )
+        .order_by('team_name')
+    )
+
     return render(request, 'stats/competition_team_stats.html', {
-        'stats': stats,
-        'qs': request.GET.urlencode(),
-        'competitions': competitions,
+        'offense_stats':   offense_stats,
+        'pitching_stats':  pitching_stats,
+        'defense_stats':   defense_stats,
+        'qs':              request.GET.urlencode(),
+        'competitions':    competitions,
     })
 
 

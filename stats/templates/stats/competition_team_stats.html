@@ -1,46 +1,135 @@
 {% extends "base.html" %}
-{% block title %}Team Stats{% endblock %}
-
 {% block content %}
-<h2>Team Stats</h2>
-<p>
-  {% for c in competitions %}
-    <span class="badge bg-secondary">{{ c.name }}</span>
-  {% endfor %}
-</p>
-<table class="table table-sm">
-  <table class="table table-sm">
-    <thead>
-      <tr>
-        <th>Team</th><th>AVG</th><th>OBP</th><th>OPS</th>
-        <th>SLG</th><th>AB</th><th>H</th><th>R</th>
-        <th>RBI</th><th>HR</th><th>BB</th><th>SO</th>
-        <th>SB</th><th>CS</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for row in stats %}
-      <tr>
-        <!-- use the annotated team_name -->
-        <td>{{ row.team_name }}</td>
-        <td>{{ row.avg|floatformat:3 }}</td>
-        <td>{{ row.obp|floatformat:3 }}</td>
-        <td>{{ row.ops|floatformat:3 }}</td>
-        <td>{{ row.slg|floatformat:3 }}</td>
-        <td>{{ row.ab }}</td>
-        <td>{{ row.h }}</td>
-        <td>{{ row.r }}</td>
-        <td>{{ row.rbi }}</td>
-        <td>{{ row.hr }}</td>
-        <td>{{ row.bb }}</td>
-        <td>{{ row.so }}</td>
-        <td>{{ row.sb }}</td>
-        <td>{{ row.cs }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>  
-<a href="{% url 'stats:competition-menu' %}?{{ qs }}" class="btn btn-link">
-  ← Back to Competition Menu
-</a>
+<div class="container">
+  <h2>Team Stats – {{ competitions|join:", " }}</h2>
+
+  <!-- Nav tabs -->
+  <ul class="nav nav-tabs mb-3" role="tablist">
+    <li class="nav-item" role="presentation">
+      <a
+        class="nav-link active"
+        id="offense-tab"
+        data-toggle="tab"
+        href="#offense-pane"
+        role="tab"
+        aria-controls="offense-pane"
+        aria-selected="true">
+        Offense
+      </a>
+    </li>
+    <li class="nav-item" role="presentation">
+      <a
+        class="nav-link"
+        id="pitching-tab"
+        data-toggle="tab"
+        href="#pitching-pane"
+        role="tab"
+        aria-controls="pitching-pane"
+        aria-selected="false">
+        Pitching
+      </a>
+    </li>
+    <li class="nav-item" role="presentation">
+      <a
+        class="nav-link"
+        id="defense-tab"
+        data-toggle="tab"
+        href="#defense-pane"
+        role="tab"
+        aria-controls="defense-pane"
+        aria-selected="false">
+        Defense
+      </a>
+    </li>
+  </ul>
+
+  <!-- Tab panes -->
+  <div class="tab-content">
+    <!-- OFFENSE -->
+    <div
+      class="tab-pane fade show active"
+      id="offense-pane"
+      role="tabpanel"
+      aria-labelledby="offense-tab">
+      <table class="table table-striped">
+        <thead>
+          <tr>
+            <th>Team</th><th>AB</th><th>H</th><th>R</th><th>RBI</th><th>HR</th>
+            <th>BB</th><th>SO</th><th>SB</th><th>CS</th><th>AVG</th><th>OBP</th>
+            <th>SLG</th><th>OPS</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in offense_stats %}
+          <tr>
+            <td>{{ row.team_name }}</td>
+            <td>{{ row.ab }}</td><td>{{ row.h }}</td><td>{{ row.r }}</td>
+            <td>{{ row.rbi }}</td><td>{{ row.hr }}</td><td>{{ row.bb }}</td>
+            <td>{{ row.so }}</td><td>{{ row.sb }}</td><td>{{ row.cs }}</td>
+            <td>{{ row.avg|floatformat:3 }}</td>
+            <td>{{ row.obp|floatformat:3 }}</td>
+            <td>{{ row.slg|floatformat:3 }}</td>
+            <td>{{ row.ops|floatformat:3 }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- PITCHING -->
+    <div
+      class="tab-pane fade"
+      id="pitching-pane"
+      role="tabpanel"
+      aria-labelledby="pitching-tab">
+      <table class="table table-striped">
+        <thead>
+          <tr>
+            <th>Team</th><th>IP (outs)</th><th>ER</th><th>H</th><th>BB</th>
+            <th>SO</th><th>ERA</th><th>WHIP</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in pitching_stats %}
+          <tr>
+            <td>{{ row.team_name }}</td>
+            <td>{{ row.ip_outs }}</td>
+            <td>{{ row.er }}</td>
+            <td>{{ row.h_allowed }}</td>
+            <td>{{ row.bb_allowed }}</td>
+            <td>{{ row.k_thrown }}</td>
+            <td>{{ row.era|floatformat:2 }}</td>
+            <td>{{ row.whip|floatformat:2 }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- DEFENSE -->
+    <div
+      class="tab-pane fade"
+      id="defense-pane"
+      role="tabpanel"
+      aria-labelledby="defense-tab">
+      <table class="table table-striped">
+        <thead>
+          <tr>
+            <th>Team</th><th>PO</th><th>A</th><th>E</th><th>PB</th><th>DP</th><th>Fld Pct</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in defense_stats %}
+          <tr>
+            <td>{{ row.team_name }}</td>
+            <td>{{ row.po }}</td><td>{{ row.a }}</td><td>{{ row.e }}</td>
+            <td>{{ row.pb }}</td><td>{{ row.dp }}</td>
+            <td>{{ row.fld_pct|floatformat:3 }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
 {% endblock %}
