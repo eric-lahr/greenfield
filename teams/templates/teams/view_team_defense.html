@@ -3,11 +3,12 @@
 {% block content %}
 {% load my_filters %}
 <div class="container mt-4">
-  <div class="row mb-3">
-    <div class="col-md-6">
-      <h2>Select a Team</h2>
+  <div class="row mb-3 align-items-end">
+    <!-- Team Dropdown (narrower width) -->
+    <div class="col-md-4">
+      <h5>Select a Team</h5>
       <form method="get">
-        <select name="team_id" class="form-control" onchange="this.form.submit()">
+        <select name="team_id" class="form-control form-control-sm" onchange="this.form.submit()">
           <option value="">-- Select a team --</option>
           {% for team in teams %}
             <option value="{{ team.id }}" {% if team.serial|stringformat:"s" == selected_team_id %}selected{% endif %}>
@@ -19,13 +20,16 @@
     </div>
 
     {% if selected_team_id %}
-    <div class="col-md-6 d-flex flex-column justify-content-end align-items-end">
-      <div class="button-group d-flex flex-wrap">
+    <!-- Button Group -->
+    <div class="col-md-8 d-flex flex-wrap justify-content-end mt-3 mt-md-0">
+      <div class="btn-group btn-group-sm flex-wrap" role="group">
         <a href="{% url 'new_create_pdf' selected_team_id %}" class="btn btn-primary">Team PDF</a>
         <a href="{% url 'create_pdf_batters' team_serial=selected_team_id %}" class="btn btn-secondary">Batters PDF</a>
         <a href="{% url 'create_pdf_pitchers' team_serial=selected_team_id %}" class="btn btn-secondary">Pitchers PDF</a>
-        <a href="{% url 'menu:home' %}" class="btn btn-outline-dark">Return to Main Menu</a>
+        <a href="{% url 'create_csv_batters' team_serial=selected_team_id %}" class="btn btn-outline-success">Batters CSV</a>
+        <a href="{% url 'create_csv_pitchers' team_serial=selected_team_id %}" class="btn btn-outline-success">Pitchers CSV</a>
       </div>
+      <a href="{% url 'menu:home' %}" class="btn btn-outline-dark btn-sm ml-2 mt-2 mt-md-0">Return to Main Menu</a>
     </div>
     {% endif %}
   </div>
@@ -35,7 +39,7 @@
   {% endif %}
 
   {% if players %}
-    <table class="table table-striped table-bordered mt-3">
+    <table class="table table-striped table-bordered table-sm">
       <thead class="thead-dark">
         <tr>
           <th>Name</th>
