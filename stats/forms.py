@@ -1,10 +1,13 @@
 from django import forms
-from django.forms import modelformset_factory
+from django.forms import modelformset_factory, formset_factory
 from .models import (
     Competition, Game, LineupEntry, PlayerStatLine,
-    Substitution, InningScore
+    Substitution, InningScore, League, Division,
+    TeamEntry
 )
 from players.models import Players
+from teams.models import Teams
+from stats.models import TeamEntry
 
 POSITIONS = [
     ("P", "P"), ("C", "C"), ("1B", "1B"), ("2B", "2B"), ("3B", "3B"),
@@ -63,24 +66,109 @@ class LineupEntryForm(forms.Form):
 class CompetitionForm(forms.ModelForm):
     class Meta:
         model = Competition
-        fields = ['name', 'description']
+        fields = ['name', 'abbreviation', 'description', 'has_structure']
         widgets = {
             'name': forms.TextInput(attrs={'class': 'form-control'}),
             'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
         }
 
-class GameForm(forms.ModelForm):
+class LeagueForm(forms.ModelForm):
     class Meta:
-        model = Game
-        fields = ['competition', 'date_played', 'home_team', 'away_team', 'home_score', 'away_score']
-        widgets = {
-            'competition': forms.Select(attrs={'class': 'form-control'}),
-            'date_played': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
-            'home_team': forms.Select(attrs={'class': 'form-control'}),
-            'away_team': forms.Select(attrs={'class': 'form-control'}),
-            'home_score': forms.NumberInput(attrs={'class': 'form-control'}),
-            'away_score': forms.NumberInput(attrs={'class': 'form-control'}),
-        }
+        model = League
+        fields = ['name','abbreviation','has_divisions']  # add a has_divisions BooleanField on League if you like.
+
+class LeagueCountForm(forms.Form):
+    num_leagues = forms.IntegerField(min_value=1, label="How many leagues?")
+
+class DivisionForm(forms.ModelForm):
+    class Meta:
+        model = Division
+        fields = ['name']
+
+class DivisionCountForm(forms.Form):
+    num_divisions = forms.IntegerField(
+        min_value=1,
+        label="How many divisions?",
+    )
+
+
+# stats/forms.py
+
+from django import forms
+from .models      import Game, Competition
+from teams.models import Teams
+
+class GameForm(forms.ModelForm):
+    competition = forms.ModelChoiceField(
+        queryset=Competition.objects.all(),
+        widget=forms.Select(attrs={'class': 'form-select'}),
+        label="Competition"
+    )
+    date_played = forms.DateField(
+        widget=forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
+        label="Date"
+    )
+    home_team = forms.ModelChoiceField(
+        queryset=Teams.objects.none(),
+        widget=forms.Select(attrs={'class': 'form-select'}),
+        label="Home Team"
+    )
+    home_score = forms.IntegerField(
+        widget=forms.NumberInput(attrs={'class': 'form-control', 'min': 0}),
+        label="Home Score"
+    )
+    away_team = forms.ModelChoiceField(
+        queryset=Teams.objects.none(),
+        widget=forms.Select(attrs={'class': 'form-select'}),
+        label="Away Team"
+    )
+    away_score = forms.IntegerField(
+        widget=forms.NumberInput(attrs={'class': 'form-control', 'min': 0}),
+        label="Away Score"
+    )
+    status = forms.ChoiceField(
+        choices=Game.STATUS_CHOICES,
+        widget=forms.Select(attrs={'class': 'form-select'}),
+        label="Status"
+    )
+
+    class Meta:
+        model  = Game
+        fields = [
+            'competition',
+            'date_played',
+            'home_team', 'home_score',
+            'away_team', 'away_score',
+            'status',
+        ]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        # 1) figure out comp_id from POST/GET or instance
+        comp_id = None
+        data    = self.data or {}
+        if data.get('competition'):
+            comp_id = data.get('competition')
+        elif self.instance.pk:
+            comp_id = self.instance.competition_id
+
+        # 2) default all teams
+        qs = Teams.objects.all()
+
+        # 3) if comp is structured, restrict to its teams
+        if comp_id:
+            try:
+                comp = Competition.objects.get(pk=comp_id)
+                if comp.has_structure:
+                    qs = comp.teams.all()
+            except Competition.DoesNotExist:
+                pass
+
+        # 4) apply to both selects
+        self.fields['home_team'].queryset = qs
+        self.fields['away_team'].queryset = qs
+
 
 class SubstitutionForm(forms.ModelForm):
     def __init__(self, *args, team=None, **kwargs):
@@ -217,3 +305,14 @@ class CompetitionSelectForm(forms.Form):
         widget=forms.CheckboxSelectMultiple,
         label="Choose one or more competitions",
     )
+
+class TeamEntryForm(forms.ModelForm):
+    class Meta:
+        model = TeamEntry
+        fields = ['team']
+        widgets = {
+            'team': forms.Select(attrs={'class': 'form-control'}),
+        }
+        labels = {
+            'team': 'Select Team',
+        }

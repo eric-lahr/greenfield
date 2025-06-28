@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block content %}
+  <h1>Add Divisions for {{ league.name }}</h1>
+
+  <form method="post">
+    {% csrf_token %}
+    {{ formset.management_form }}
+    {% for form in formset %}
+      <fieldset class="border p-3 mb-3">
+        <legend>Division {{ forloop.counter }}</legend>
+        {{ form.as_p }}
+      </fieldset>
+    {% endfor %}
+    <button class="btn btn-success">Save Divisions →</button>
+  </form>
+{% endblock %}

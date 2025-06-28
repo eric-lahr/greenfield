@@ -1,0 +1,12 @@
+{# stats/templates/competitions/league_count.html #}
+{% extends "base.html" %}
+
+{% block content %}
+  <h1>{{ comp.name }}: How many leagues?</h1>
+
+  <form method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit" class="btn btn-primary">Next →</button>
+  </form>
+{% endblock %}

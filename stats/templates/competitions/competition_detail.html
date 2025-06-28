@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <h1>
+    {{ competition.name }}
+    {% if competition.abbreviation %} ({{ competition.abbreviation }}){% endif %}
+  </h1>
+  <p>{{ competition.description }}</p>
+
+  {% if competition.has_structure %}
+    {# Only show unassigned teams list, no competition-level +Add here #}
+    {% if comp_teams %}
+      <h2>Unassigned Teams</h2>
+      <ul>
+        {% for team in comp_teams %}
+          <li>{{ team }}</li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+
+    {% for league in leagues %}
+      <h2>
+        League: {{ league.name }}
+        {% if league.abbreviation %} ({{ league.abbreviation }}){% endif %}
+      </h2>
+
+      {% if league.has_divisions %}
+        {% if league.divisions.exists %}
+          {% for division in league.divisions.all %}
+            <h3>Division: {{ division.name }}</h3>
+            {% if division.teams.all %}
+              <ul>
+                {% for team in division.teams.all %}
+                  <li>{{ team }}</li>
+                {% endfor %}
+              </ul>
+            {% else %}
+              <p><em>No teams assigned.</em></p>
+            {% endif %}
+            <p>
+              <a href="{% url 'stats:division-assign' league_pk=league.pk division_pk=division.pk %}" class="btn btn-outline-primary btn-sm">
+                + Add Team
+              </a>
+            </p>
+          {% endfor %}
+        {% else %}
+          <p><em>No divisions defined yet.</em></p>
+          <p>
+            <a href="{% url 'stats:division-count' league_pk=league.pk %}" class="btn btn-outline-primary btn-sm">
+              Define Divisions
+            </a>
+          </p>
+          <p>
+            <a href="{% url 'stats:league-assign' league_pk=league.pk %}" class="btn btn-outline-primary btn-sm">
+              + Add Team
+            </a>
+          </p>
+        {% endif %}
+      {% else %}
+        <h3>Teams</h3>
+        {% if league.teams.all %}
+          <ul>
+            {% for team in league.teams.all %}
+              <li>{{ team }}</li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p><em>No teams assigned.</em></p>
+        {% endif %}
+        <p>
+          <a href="{% url 'stats:league-assign' league_pk=league.pk %}" class="btn btn-outline-primary btn-sm">
+            + Add Team
+          </a>
+        </p>
+      {% endif %}
+
+    {% endfor %}
+
+  {% else %}
+    <h2>Teams</h2>
+    {% if teams %}
+      <ul>
+        {% for team in teams %}
+          <li>{{ team }}</li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p><em>No teams assigned.</em></p>
+    {% endif %}
+    <p>
+      <a href="{% url 'stats:competition-assign' pk=competition.pk %}" class="btn btn-outline-primary btn-sm">
+        + Add Team
+      </a>
+    </p>
+  {% endif %}
+{% endblock %}

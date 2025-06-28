@@ -1,19 +1,21 @@
 from django.shortcuts import (
     render, get_object_or_404, redirect, get_list_or_404
     )
-from django.views.generic import ListView, CreateView
+from django.views.generic import ListView, CreateView, FormView, DetailView
+from django.views import View
 from django.urls import reverse_lazy, reverse
 from django.forms import formset_factory
 from django.contrib import messages
+from django.http import JsonResponse
 from django.db.models import (
     Q, Sum, F, Count, Value, FloatField, ExpressionWrapper,
-    Case, When
+    Case, When, IntegerField, When
     )
 from django.db.models.functions import Concat
 from urllib.parse import urlencode
 from .models import (
     Competition, Game, LineupEntry, PlayerStatLine, InningScore,
-    Substitution
+    Substitution, League, Division, TeamEntry, TeamStanding
     )
 from players.models import Players
 from teams.models import Teams
@@ -21,37 +23,193 @@ from .forms import (
     CompetitionForm, GameForm, LineupEntryForm, SubstitutionForm,
     InningScoreForm, BattingStatForm, PitchDefStatForm,
     InningScoreFormSet, BattingStatFormSet, PitchDefStatFormSet,
-    CompetitionSelectForm
+    CompetitionSelectForm, LeagueCountForm, LeagueForm, DivisionForm,
+    DivisionCountForm, TeamEntryForm
     )
+
+
+def competition_teams_json(request, pk):
+    comp = get_object_or_404(Competition, pk=pk)
+
+    if comp.has_structure:
+        # Gather all team‐IDs that have a TeamEntry for this competition
+        team_ids = (
+            TeamEntry.objects
+            .filter(competition=comp)
+            .values_list('team_id', flat=True)
+            .distinct()
+        )
+        qs = Teams.objects.filter(pk__in=team_ids)
+    else:
+        qs = Teams.objects.all()
+
+    teams = [{'pk': t.pk, 'display': str(t)} for t in qs]
+    return JsonResponse({'teams': teams})
+
 
 class CompetitionListView(ListView):
     model = Competition
-    template_name = 'stats/competition_list.html'
+    template_name = 'competitions/competition_list.html'
 
 class CompetitionCreateView(CreateView):
+    model         = Competition
+    form_class    = CompetitionForm
+    template_name = 'competitions/competition_form.html'
+
+    def form_valid(self, form):
+        # Save the Competition
+        comp = form.save()
+
+        # If they want a structure, send them to the league‐count step
+        if comp.has_structure:
+            return redirect('stats:league-count', pk=comp.pk)
+
+        # Otherwise, go straight to the competition detail page
+        return redirect('stats:competition-detail', pk=comp.pk)
+
+class CompetitionDetailView(DetailView):
     model = Competition
-    form_class = CompetitionForm
-    template_name = 'stats/competition_form.html'
-    success_url = reverse_lazy('stats:competition-list')
+    template_name = 'competitions/competition_detail.html'
+    context_object_name = 'competition'
 
-# class GameCreateView(CreateView):
-#     model = Game
-#     form_class = GameForm
-#     template_name = 'stats/game_form.html'
-#     success_url = reverse_lazy('stats:competition-list')  # Or maybe later: competition detail
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        comp = self.object
 
-def create_game_view(request):
+        if comp.has_structure:
+            # teams added directly to the competition
+            ctx['comp_teams'] = comp.teams.filter(
+                team_entries__competition=comp,
+                team_entries__league__isnull=True,
+                team_entries__division__isnull=True
+            )
+            # all leagues under this competition
+            ctx['leagues'] = comp.leagues.all()
+        else:
+            # unstructured: all teams go here
+            ctx['teams'] = comp.teams.all()
+
+        return ctx
+
+class LeagueCountView(FormView):
+    form_class    = LeagueCountForm
+    template_name = "competitions/league_count.html"
+
+    def dispatch(self, request, *args, **kwargs):
+        self.comp = Competition.objects.get(pk=kwargs['pk'])
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_context_data(self, **ctx):
+        ctx = super().get_context_data(**ctx)
+        ctx['comp'] = self.comp
+        return ctx
+
+    def form_valid(self, form):
+        num = form.cleaned_data['num_leagues']
+        # redirect into the league‐creation step with the ?num=… querystring
+        return redirect(
+            reverse('stats:league-add', args=[self.comp.pk]) + f'?num={num}'
+        )
+
+class LeagueCreateView(View):
+    def get(self, request, pk):
+        comp = get_object_or_404(Competition, pk=pk)
+        num  = int(request.GET.get('num', 1))
+        LeagueFormSet = formset_factory(LeagueForm, extra=num)
+        formset = LeagueFormSet()
+        return render(request, 'competitions/league_formset.html', {
+            'competition': comp,
+            'formset': formset,
+        })
+
+    def post(self, request, pk):
+        comp = get_object_or_404(Competition, pk=pk)
+        num  = int(request.GET.get('num', 1))
+        LeagueFormSet = formset_factory(LeagueForm, extra=num)
+        formset = LeagueFormSet(request.POST)
+
+        if formset.is_valid():
+            for form in formset:
+                league = form.save(commit=False)
+                league.competition = comp
+                league.save()
+
+            # ← HERE: redirect back to the CompetitionDetailView
+            return redirect('stats:competition-detail', pk=comp.pk)
+
+        return render(request, 'competitions/league_formset.html', {
+            'competition': comp,
+            'formset': formset,
+        })
+
+class DivisionCountView(FormView):
+    form_class    = DivisionCountForm
+    template_name = "competitions/division_count.html"
+
+    def dispatch(self, request, *args, **kwargs):
+        # stash the League object for use in get_context_data & redirect
+        self.league = get_object_or_404(League, pk=kwargs['league_pk'])
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_context_data(self, **ctx):
+        ctx = super().get_context_data(**ctx)
+        ctx['league'] = self.league
+        return ctx
+
+    def form_valid(self, form):
+        num = form.cleaned_data['num_divisions']
+        # redirect into your DivisionCreateView, passing ?num=… just like leagues
+        url = reverse('stats:division-add', args=[self.league.pk])
+        return redirect(f"{url}?num={num}")
+
+class DivisionCreateView(View):
+    """
+    Renders a formset to create N divisions for a given league,
+    then saves them and redirects back to the competition detail.
+    """
+    def get(self, request, league_pk):
+        league = get_object_or_404(League, pk=league_pk)
+        num = int(request.GET.get('num', 1))
+        DivisionFormSet = formset_factory(DivisionForm, extra=num)
+        formset = DivisionFormSet()
+        return render(request, 'competitions/division_formset.html', {
+            'league': league,
+            'formset': formset,
+        })
+
+    def post(self, request, league_pk):
+        league = get_object_or_404(League, pk=league_pk)
+        num = int(request.GET.get('num', 1))
+        DivisionFormSet = formset_factory(DivisionForm, extra=num)
+        formset = DivisionFormSet(request.POST)
+
+        if formset.is_valid():
+            for form in formset:
+                division = form.save(commit=False)
+                division.league = league
+                division.save()
+            # once divisions exist, go back to the competition overview
+            return redirect('stats:competition-detail', pk=league.competition.pk)
+
+        # if invalid, re-render the same formset with errors
+        return render(request, 'competitions/division_formset.html', {
+            'league': league,
+            'formset': formset,
+        })
+
+
+def create_game(request):
     if request.method == 'POST':
         form = GameForm(request.POST)
         if form.is_valid():
-            game = form.save(commit=False)
-            game.status = 'draft'  # Make sure new games start as draft
-            game.save()
-            return redirect('stats:game-select')
+            form.save()
+            return redirect('stats:competition-games')  # or wherever
     else:
-        form = GameForm()
-    
-    return render(request, 'stats/create_game.html', {'form': form})
+        form = GameForm(request.GET or None)
+
+    return render(request, 'stats/game_form.html', {
+        'form': form
+    })
 
 
 def delete_game_view(request, game_id):
@@ -361,27 +519,32 @@ def enter_inning_scores(request, game_id):
     # Now build formsets over those rows
     home_qs = InningScore.objects.filter(game=game, team=game.home_team).order_by('inning')
     away_qs = InningScore.objects.filter(game=game, team=game.away_team).order_by('inning')
-
+    
     if request.method == 'POST':
         home_formset = InningScoreFormSet(request.POST, prefix='home', queryset=home_qs)
         away_formset = InningScoreFormSet(request.POST, prefix='away', queryset=away_qs)
 
-
-        if not home_formset.is_valid() or not away_formset.is_valid():
-            print("🏳️ home errors:", home_formset.errors)
-            print("🏳️ home non-form errors:", home_formset.non_form_errors())
-            print("🏳️ away errors:", away_formset.errors)
-            print("🏳️ away non-form errors:", away_formset.non_form_errors())
-        else:
-            home_formset.save()
-            away_formset.save()
-            return redirect('stats:game-select')
-
-
         if home_formset.is_valid() and away_formset.is_valid():
+            # 1) save the per-inning rows
             home_formset.save()
             away_formset.save()
+
+            # 2) re-sum all innings for each team
+            home_total = InningScore.objects.filter(
+                game=game, team=game.home_team
+            ).aggregate(total=Sum('runs'))['total'] or 0
+
+            away_total = InningScore.objects.filter(
+                game=game, team=game.away_team
+            ).aggregate(total=Sum('runs'))['total'] or 0
+
+            # 3) update the Game record
+            game.home_score = home_total
+            game.away_score = away_total
+            game.save()
+
             return redirect('stats:game-select')
+
     else:
         home_formset = InningScoreFormSet(prefix='home', queryset=home_qs)
         away_formset = InningScoreFormSet(prefix='away', queryset=away_qs)
@@ -665,14 +828,12 @@ def competition_team_stats_view(request):
             wp=Sum('wp'),
             ibb=Sum('ibb'),
         )
-        # convert outs into fractional innings (3 outs = 1 inning)
         .annotate(
             innings_pitched=ExpressionWrapper(
                 F('ip_outs') * 1.0 / 3.0,
                 output_field=FloatField()
             )
         )
-        # now compute ERA and WHIP using that true innings_pitched
         .annotate(
             era=ExpressionWrapper(
                 F('er') * 9.0 / F('innings_pitched'),
@@ -701,9 +862,13 @@ def competition_team_stats_view(request):
             dp=Sum('dp'),
         )
         .annotate(
-            fld_pct=ExpressionWrapper(
-                (F('po') + F('a'))*1.0/(F('po') + F('a') + F('e')),
-                output_field=FloatField()
+            total_chances=F('po') + F('a') + F('e'),
+        )
+        .annotate(
+            fld_pct=Case(
+                When(total_chances=0, then=Value(0.0)),
+                default=(F('po') + F('a')) * Value(1.0) / F('total_chances'),
+                output_field=FloatField(),
             )
         )
         .order_by('team_name')
@@ -743,27 +908,89 @@ def competition_leaders_view(request):
 
 
 def competition_standings_view(request):
-    comp_ids = request.GET.getlist('competitions')
-    competitions = get_list_or_404(Competition, pk__in=comp_ids)
+    comp_id     = request.GET.get('competitions')
+    competition = get_object_or_404(Competition, pk=comp_id)
 
-    # Sum wins/losses/ties from TeamStanding across all comps
-    standings = (
-        TeamStanding.objects
-        .filter(competition__in=competitions)
-        .values('team__first_name', 'team__team_name')
-        .annotate(
-            wins=Sum('wins'),
-            losses=Sum('losses'),
-            ties=Sum('ties')
+    # Build structured or unstructured standings
+    if competition.has_structure:
+        structured = []
+        for league in competition.leagues.all():
+            if league.has_divisions:
+                divs = []
+                for division in league.divisions.all():
+                    qs = Teams.objects.filter(
+                        team_entries__competition=competition,
+                        team_entries__division=division
+                    )
+                    divs.append({
+                        'name': division.name,
+                        'rows': _annotate_standings(qs, competition)
+                    })
+                structured.append({'name': league.name, 'divisions': divs})
+            else:
+                qs = Teams.objects.filter(
+                    team_entries__competition=competition,
+                    team_entries__league=league
+                )
+                structured.append({
+                    'name': league.name,
+                    'rows': _annotate_standings(qs, competition)
+                })
+        context = {'competition': competition, 'structured': structured}
+    else:
+        qs = Teams.objects.filter(team_entries__competition=competition)
+        rows = _annotate_standings(qs, competition)
+        context = {'competition': competition, 'unstructured': rows}
+
+    return render(request, 'stats/competition_standings.html', context)
+
+
+def _annotate_standings(qs, competition):
+    """
+    Annotate a Teams queryset with wins, losses, GB, and pct.
+    Returns a list of dicts: {'display_name','wins','losses','gb','win_pct'}.
+    """
+    annotated = (
+        qs.annotate(
+            display_name=Concat(F('first_name'), Value(' '), F('team_name')),
+            played=Count('home_games', filter=Q(home_games__competition=competition)) +
+                   Count('away_games', filter=Q(away_games__competition=competition)),
+            wins=Count('home_games', filter=Q(
+                        home_games__competition=competition,
+                        home_games__home_score__gt=F('home_games__away_score')
+                    )) +
+                 Count('away_games', filter=Q(
+                        away_games__competition=competition,
+                        away_games__away_score__gt=F('away_games__home_score')
+                    )),
+            losses=Count('home_games', filter=Q(
+                        home_games__competition=competition,
+                        home_games__home_score__lt=F('home_games__away_score')
+                    )) +
+                   Count('away_games', filter=Q(
+                        away_games__competition=competition,
+                        away_games__away_score__lt=F('away_games__home_score')
+                    )),
         )
-        .order_by('-wins', 'losses')
+        .annotate(
+            win_pct=ExpressionWrapper(
+                F('wins') * 1.0 / Case(
+                    When(played=0, then=Value(1)),   # avoid zero-divide
+                    default=F('played'),
+                    output_field=FloatField()
+                ),
+                output_field=FloatField()
+            )
+        )
+        .order_by('-wins', '-win_pct')
     )
 
-    return render(request, 'stats/competition_standings.html', {
-        'standings': standings,
-        'qs': request.GET.urlencode(),
-        'competitions': competitions,
-    })
+    rows = list(annotated.values('display_name', 'wins', 'losses', 'win_pct'))
+    if rows:
+        leader_wins = rows[0]['wins']
+        for row in rows:
+            row['gb'] = leader_wins - row['wins']
+    return rows
 
 
 def competition_games_view(request):
@@ -933,3 +1160,100 @@ def game_boxscore_view(request, game_id):
         'home_cs':          home_cs,
         'away_cs':          away_cs
     })
+
+
+class CompetitionTeamAssignView(CreateView):
+    model         = TeamEntry
+    form_class    = TeamEntryForm
+    template_name = "competitions/teamentry_form.html"
+
+    def dispatch(self, request, *args, **kwargs):
+        self.comp = get_object_or_404(Competition, pk=kwargs['pk'])
+        return super().dispatch(request, *args, **kwargs)
+
+    def form_valid(self, form):
+        form.instance.competition = self.comp
+        form.instance.league      = None
+        form.instance.division    = None
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse('stats:competition-detail', args=[self.comp.pk])
+
+
+class LeagueTeamAssignView(CreateView):
+    model         = TeamEntry
+    form_class    = TeamEntryForm
+    template_name = "competitions/teamentry_form.html"
+
+    def dispatch(self, request, *args, **kwargs):
+        self.league = get_object_or_404(League, pk=kwargs['league_pk'])
+        self.comp   = self.league.competition
+        return super().dispatch(request, *args, **kwargs)
+
+    def form_valid(self, form):
+        form.instance.competition = self.comp
+        form.instance.league      = self.league
+        form.instance.division    = None
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse('stats:competition-detail', args=[self.comp.pk])
+
+
+class DivisionTeamAssignView(CreateView):
+    model         = TeamEntry
+    form_class    = TeamEntryForm
+    template_name = "competitions/teamentry_form.html"
+
+    def dispatch(self, request, *args, **kwargs):
+        self.division = get_object_or_404(Division, pk=kwargs['division_pk'])
+        self.league   = self.division.league
+        self.comp     = self.league.competition
+        return super().dispatch(request, *args, **kwargs)
+
+    def form_valid(self, form):
+        form.instance.competition = self.comp
+        form.instance.league      = self.league
+        form.instance.division    = self.division
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse('stats:competition-detail', args=[self.comp.pk])
+
+
+class StandingsView(ListView):
+    template_name = 'competitions/standings.html'
+    context_object_name = 'standings'
+
+    def get_queryset(self):
+        comp = Competition.objects.get(pk=self.kwargs['pk'])
+        # gather all teams in this comp
+        teams = comp.teams.all()
+        # annotate each with totals
+        return teams.annotate(
+            played=Count('team_entries__game', filter=Q(team_entries__game__competition=comp)),
+            wins=Count('team_entries__game', filter=Q(
+                team_entries__game__competition=comp,
+                team_entries__game__home_team=F('pk'),
+                team_entries__game__home_score__gt=F('team_entries__game__away_score')
+            )) + Count('team_entries__game', filter=Q(
+                team_entries__game__competition=comp,
+                team_entries__game__away_team=F('pk'),
+                team_entries__game__away_score__gt=F('team_entries__game__home_score')
+            )),
+            losses=Count('team_entries__game', filter=Q(
+                team_entries__game__competition=comp,
+                team_entries__game__home_team=F('pk'),
+                team_entries__game__home_score__lt=F('team_entries__game__away_score')
+            )) + Count('team_entries__game', filter=Q(
+                team_entries__game__competition=comp,
+                team_entries__game__away_team=F('pk'),
+                team_entries__game__away_score__lt=F('team_entries__game__home_score')
+            )),
+        ).annotate(
+            win_pct=ExpressionWrapper(
+                F('wins') * 1.0 / F('played'),
+                output_field=IntegerField()
+            )
+        ).order_by('-wins', '-win_pct')

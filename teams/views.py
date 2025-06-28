@@ -1,5 +1,6 @@
+import csv
 from django.shortcuts import render, get_object_or_404
-from io import BytesIO
+from io import BytesIO, StringIO
 from .models import Teams
 from players.models import Players, PlayerPositionRating
 from django.db.models import Case, When, Value, IntegerField, Prefetch
@@ -277,4 +278,62 @@ def create_pdf_pitchers(request, team_serial):
         y -= 15
 
     p.save()
+    return response
+
+
+def create_csv_batters(request, team_serial):
+    team = get_object_or_404(Teams, pk=team_serial)
+    players = list(Players.objects.filter(team_serial_id=team_serial))
+
+    for player in players:
+        ratings = PlayerPositionRating.objects.filter(player=player).select_related('position')
+        player.ratings = ratings
+        player.is_pitcher = any(r.position.name == 'P' for r in ratings if r.position)
+
+    batters = [p for p in players if not p.is_pitcher]
+    batters.sort(key=lambda p: (get_primary_position_order(p), p.last_name, p.first_name))
+
+    output = StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["Name", "B-T", "Offense", "Defense"])
+
+    for p in batters:
+        name = f"{p.first_name} {p.last_name}"
+        hand = f"{p.bats}-{p.throws}"
+        offense = f"{p.offense or ''} PH-{p.bat_prob_hit}" if p.bat_prob_hit else (p.offense or '')
+        defense = ', '.join(f"{r.position.name}: {r.rating}" for r in p.ratings if r.position)
+        writer.writerow([name, hand, offense.strip(), defense])
+
+    response = HttpResponse(output.getvalue(), content_type='text/csv')
+    response['Content-Disposition'] = f'attachment; filename="{team.team_name}_{team.first_name}_batters.csv"'
+    return response
+
+
+def create_csv_pitchers(request, team_serial):
+    team = get_object_or_404(Teams, pk=team_serial)
+    players = list(Players.objects.filter(team_serial_id=team_serial))
+
+    for player in players:
+        ratings = PlayerPositionRating.objects.filter(player=player).select_related('position')
+        player.ratings = ratings
+        player.is_pitcher = any(r.position.name == 'P' for r in ratings if r.position)
+        player.primary_position = get_primary_position(ratings)
+        player.offense = player.offense or ''
+        player.defense = get_defense_string(ratings)
+        player.pitching = get_pitching_string(player)
+
+    pitchers = [p for p in players if p.is_pitcher]
+    pitchers.sort(key=lambda p: parse_pitching_sort_key(p.pitching))
+
+    output = StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["Name", "B-T", "Offense", "Defense", "Pitching"])
+
+    for p in pitchers:
+        name = f"{p.first_name} {p.last_name}"
+        hand = f"{p.bats}-{p.throws}"
+        writer.writerow([name, hand, p.offense, p.defense, p.pitching])
+
+    response = HttpResponse(output.getvalue(), content_type='text/csv')
+    response['Content-Disposition'] = f'attachment; filename="{team.team_name}_{team.first_name}_pitchers.csv"'
     return response

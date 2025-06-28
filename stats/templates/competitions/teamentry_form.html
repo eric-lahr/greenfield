@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block content %}
+  <h1>
+    Add Team
+    {% if division %}
+      to {{ division.name }} ({{ league.name }})
+    {% elif league %}
+      to {{ league.name }}
+    {% else %}
+      to {{ competition.name }}
+    {% endif %}
+  </h1>
+
+  <form method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit" class="btn btn-primary">Add Team</button>
+  </form>
+{% endblock %}

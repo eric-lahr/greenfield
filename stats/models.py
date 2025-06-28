@@ -1,30 +1,114 @@
 from django.db import models
+from django.core.exceptions import ValidationError
 from teams.models import Teams
 from players.models import Players
 
 class Competition(models.Model):
-    name = models.CharField(max_length=100, unique=True)
-    description = models.TextField(blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
+    name          = models.CharField(max_length=100, unique=True)
+    abbreviation  = models.CharField(max_length=20, blank=True)
+    description   = models.TextField(blank=True)
+    has_structure = models.BooleanField(default=False)
+    created_at    = models.DateTimeField(auto_now_add=True)
+
+    # ← the teams M2M goes through TeamEntry:
+    teams         = models.ManyToManyField(
+        'teams.Teams',
+        through='TeamEntry',
+        related_name='competitions'
+    )
 
     def __str__(self):
         return self.name
 
 
 class League(models.Model):
-    competition = models.ForeignKey(Competition, on_delete=models.CASCADE, related_name='leagues')
-    name = models.CharField(max_length=100)
+    competition  = models.ForeignKey(
+        Competition,
+        on_delete=models.CASCADE,
+        related_name='leagues'
+    )
+    name         = models.CharField(max_length=100)
+    abbreviation = models.CharField(max_length=20, blank=True)
+    has_divisions= models.BooleanField(default=False)
+
+    # (optional) if you want to navigate from League → teams directly:
+    teams        = models.ManyToManyField(
+        'teams.Teams',
+        through='TeamEntry',
+        related_name='leagues'
+    )
 
     def __str__(self):
-        return f"{self.name} ({self.competition.name})"
+        return f"{self.name} ({self.competition.abbreviation or self.competition.name})"
 
 
 class Division(models.Model):
-    league = models.ForeignKey(League, on_delete=models.CASCADE, related_name='divisions')
-    name = models.CharField(max_length=100)
+    league = models.ForeignKey(
+        League,
+        on_delete=models.CASCADE,
+        related_name='divisions'
+    )
+    name   = models.CharField(max_length=100)
+    # (optional) nav from Division → teams:
+    teams  = models.ManyToManyField(
+        'teams.Teams',
+        through='TeamEntry',
+        related_name='divisions'
+    )
 
     def __str__(self):
-        return f"{self.name} ({self.league.name})"
+        return f"{self.name} ({self.league.abbreviation or self.league.name})"
+
+
+class TeamEntry(models.Model):
+    """
+    Join‐table linking a Team to a Competition, optionally scoped into a League and/or Division.
+    """
+    competition = models.ForeignKey(
+        Competition,
+        on_delete=models.CASCADE,
+        related_name='team_entries'
+    )
+    league      = models.ForeignKey(
+        League,
+        on_delete=models.CASCADE,
+        null=True, blank=True,
+        related_name='team_entries'
+    )
+    division    = models.ForeignKey(
+        Division,
+        on_delete=models.CASCADE,
+        null=True, blank=True,
+        related_name='team_entries'
+    )
+    team        = models.ForeignKey(
+        'teams.Teams',
+        on_delete=models.CASCADE,
+        related_name='team_entries'
+    )
+
+    class Meta:
+        # prevent exact dupes:
+        unique_together = [
+            ('competition', 'league', 'division', 'team'),
+        ]
+
+    def clean(self):
+        # 1) league must belong to that competition
+        if self.league and self.league.competition_id != self.competition_id:
+            raise ValidationError("Selected league is not in this competition.")
+
+        # 2) division must belong to that league
+        if self.division and self.league_id != self.division.league_id:
+            raise ValidationError("Selected division is not in that league.")
+
+        # 3) if division chosen but league left blank, auto-fill it
+        if self.division and not self.league:
+            self.league = self.division.league
+
+    def save(self, *args, **kwargs):
+        self.clean()
+        super().save(*args, **kwargs)
 
 
 class Game(models.Model):
