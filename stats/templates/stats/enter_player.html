@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Stats for {{ statline.player }} (#{ statline.player.uniform }})</h2>
+<img src="{{ statline.player.photo_url }}" height="120px">
+
+<form method="post">
+  {% csrf_token %}
+  {{ off_form.as_p }}
+  {{ def_form.as_p }}
+  {% if pit_form %}{{ pit_form.as_p }}{% endif %}
+
+  <button name="save" class="btn btn-primary">Save & Stay</button>
+  <button name="next" class="btn btn-secondary">
+    Save & {% if next_exists %}Next{% else %}Finish{% endif %}
+  </button>
+</form>
+{% endblock %}

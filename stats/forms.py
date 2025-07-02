@@ -202,61 +202,61 @@ InningScoreFormSet = modelformset_factory(
     can_delete=False
 )
 
+class OffenseForm(forms.Form):
+    ab      = forms.IntegerField(min_value=0, required=False, initial=0, label="AB")
+    r       = forms.IntegerField(min_value=0, required=False, initial=0, label="R")
+    h       = forms.IntegerField(min_value=0, required=False, initial=0, label="H")
+    doubles = forms.IntegerField(min_value=0, required=False, initial=0, label="2B")
+    triples = forms.IntegerField(min_value=0, required=False, initial=0, label="3B")
+    hr      = forms.IntegerField(min_value=0, required=False, initial=0, label="HR")
+    rbi     = forms.IntegerField(min_value=0, required=False, initial=0, label="RBI")
+    so      = forms.IntegerField(min_value=0, required=False, initial=0, label="SO")
+    bb      = forms.IntegerField(min_value=0, required=False, initial=0, label="BB")
+    sf      = forms.IntegerField(min_value=0, required=False, initial=0, label="SF")
+    sb      = forms.IntegerField(min_value=0, required=False, initial=0, label="SB")
+    cs      = forms.IntegerField(min_value=0, required=False, initial=0, label="CS")
+    hbp     = forms.IntegerField(min_value=0, required=False, initial=0, label="HBP")
+    dp      = forms.IntegerField(min_value=0, required=False, initial=0, label="DP")
 
-class BattingStatForm(forms.ModelForm):
-    class Meta:
-        model = PlayerStatLine
-        fields = [
-            'ab',       # At‐bats
-            'h',        # Hits
-            'doubles',  # Doubles
-            'triples',  # Triples
-            'hr',       # Home runs
-            'r',        # Runs
-            'rbi',      # RBI
-            'bb',       # Walks
-            'so',       # Strikeouts
-            'sf',       # Sac flies
-            'hbp',      # Hit by pitch
-            'sb',       # Stolen bases
-            'cs',       # Caught stealing
-            'dp',       # Double plays
-        ]
-        widgets = {
-            name: forms.NumberInput(
-                attrs={'class': 'form-control', 'style': 'width: 80px;'}
-            )
-            for name in fields
-        }
+class DefenseForm(forms.Form):
+    po      = forms.IntegerField(min_value=0, required=False, initial=0, label="PO")
+    a       = forms.IntegerField(min_value=0, required=False, initial=0, label="A")
+    e       = forms.IntegerField(min_value=0, required=False, initial=0, label="E")
+    # catcher‐only
+    sb      = forms.IntegerField(min_value=0, required=False, initial=0, label="SB")
+    cs      = forms.IntegerField(min_value=0, required=False, initial=0, label="CS")
+    pb      = forms.IntegerField(min_value=0, required=False, initial=0, label="PB")
 
-
-class PitchDefStatForm(forms.ModelForm):
-    # override the model’s IntegerFields with CharFields…
-    ip_outs = forms.CharField(
-        label="IP",
-        required=False,
-        widget=forms.TextInput(attrs={'class':'form-control','style':'width:80px;'})
-    )
-    ra = forms.CharField(
-        label="Runs Allowed",
-        required=False,
-        widget=forms.NumberInput(attrs={'class':'form-control','style':'width:80px;'})
-    )
-
-    class Meta:
-        model = PlayerStatLine
-        fields = [
-            'ip_outs', 'ra', 'er', 'h_allowed', 'hra', 'k_thrown', 'bb_allowed',
-            'decision', 'balk', 'hb', 'wp', 'ibb',
-            'po', 'a', 'e', 'pb'
-        ]
-        widgets = {
-            # If you want custom widgets for the others, list them here
-        }
+class PitchingForm(forms.Form):
+    ip_outs     = forms.CharField(
+                    required=False,
+                    initial="0.0",
+                    label="IP",
+                    help_text="e.g. 6.2 for 6⅔ innings"
+                  )
+    ra          = forms.CharField(
+                    required=False,
+                    initial="0",
+                    label="R",
+                    help_text="Runs Allowed"
+                  )
+    er          = forms.IntegerField(min_value=0, required=False, initial=0, label="ER")
+    h_allowed   = forms.IntegerField(min_value=0, required=False, initial=0, label="Hits Allowed")
+    hra         = forms.IntegerField(min_value=0, required=False, initial=0, label="HRA")
+    k_thrown    = forms.IntegerField(min_value=0, required=False, initial=0, label="K")
+    bb_allowed  = forms.IntegerField(min_value=0, required=False, initial=0, label="BB")
+    decision    = forms.ChoiceField(
+                     choices=[('','None'),('W','Win'),('L','Loss'),('S','Save')],
+                     required=False,
+                     label="Decision"
+                  )
+    balk        = forms.IntegerField(min_value=0, required=False, initial=0, label="Balk")
+    wp          = forms.IntegerField(min_value=0, required=False, initial=0, label="WP")
+    ibb         = forms.IntegerField(min_value=0, required=False, initial=0, label="IBB")
 
     def clean_ip_outs(self):
         raw = (self.cleaned_data.get('ip_outs') or '').strip()
-        if raw == '':
+        if not raw:
             return 0
         if raw.startswith('.'):
             raw = '0' + raw
@@ -268,6 +268,7 @@ class PitchDefStatForm(forms.ModelForm):
                 full, part = int(raw), 0
             if part not in (0, 1, 2):
                 raise ValueError
+            # convert to total outs
             return full * 3 + part
         except ValueError:
             raise forms.ValidationError(
@@ -276,28 +277,13 @@ class PitchDefStatForm(forms.ModelForm):
 
     def clean_ra(self):
         raw = (self.cleaned_data.get('ra') or '').strip()
-        if raw == '':
+        if not raw:
             return 0
         try:
             return int(raw)
         except ValueError:
             raise forms.ValidationError("Runs Allowed must be a whole number.")
 
-
-# Formset factories
-BattingStatFormSet = modelformset_factory(
-    PlayerStatLine,
-    form=BattingStatForm,
-    extra=0,
-    can_delete=False
-)
-
-PitchDefStatFormSet = modelformset_factory(
-    PlayerStatLine,
-    form=PitchDefStatForm,
-    extra=0,
-    can_delete=False
-)
 
 class CompetitionSelectForm(forms.Form):
     competitions = forms.ModelMultipleChoiceField(

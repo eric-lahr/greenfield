@@ -43,7 +43,7 @@
                 <a href="{% url 'stats:enter-substitutions' game.id %}?team=home" class="btn btn-sm btn-primary" role="button">Home Subs</a>
                 <a href="{% url 'stats:enter-substitutions' game.id %}?team=away" class="btn btn-sm btn-secondary" role="button">Away Subs</a>
                 <a href="{% url 'stats:enter-inning-scores' game.pk %}" class="btn btn-sm btn-info" role="button">Inning Runs</a>
-                <a href="{% url 'stats:enter-statlines' game.pk %}" class="btn btn-sm btn-success" role="button">Stats</a>
+                <a href="{% url 'stats:enter-stats' game.pk %}" class="btn btn-sm btn-success" role="button">Stats</a>
                 <a href="{% url 'stats:finalize-game' game.pk %}" class="btn btn-sm btn-warning" role="button">Finalize</a>
                 {% if game.status == 'draft' %}
                   <a href="{% url 'stats:delete-game' game.pk %}" class="btn btn-sm btn-danger" role="button">Delete</a>

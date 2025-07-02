@@ -167,6 +167,10 @@ class PlayerStatLine(models.Model):
     dp = models.PositiveSmallIntegerField(default=0)
 
     # Pitching
+    threw = models.BooleanField(
+        default=False,
+        help_text="Did this player pitch in the game?"
+    )
     ip_outs = models.IntegerField(default=0)  # innings pitched
     ra = models.IntegerField(default=0)
     er = models.PositiveSmallIntegerField(default=0)
@@ -195,6 +199,19 @@ class PlayerStatLine(models.Model):
 
     def __str__(self):
         return f"{self.player} - {self.game}"
+
+    @property
+    def games_played(self):
+        # count all stat‐lines for this player across *all* games
+        return PlayerStatLine.objects.filter(player=self.player).count()
+
+    @property
+    def games_pitched(self):
+        # count all stat‐lines where they recorded at least one out
+        return PlayerStatLine.objects.filter(
+            player=self.player,
+            ip_outs__gt=0
+        ).count()
 
 
 class LineupEntry(models.Model):

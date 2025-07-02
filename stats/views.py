@@ -21,10 +21,9 @@ from players.models import Players
 from teams.models import Teams
 from .forms import (
     CompetitionForm, GameForm, LineupEntryForm, SubstitutionForm,
-    InningScoreForm, BattingStatForm, PitchDefStatForm,
-    InningScoreFormSet, BattingStatFormSet, PitchDefStatFormSet,
-    CompetitionSelectForm, LeagueCountForm, LeagueForm, DivisionForm,
-    DivisionCountForm, TeamEntryForm
+    InningScoreForm, OffenseForm, DefenseForm, PitchingForm,
+    InningScoreFormSet, CompetitionSelectForm, LeagueCountForm,
+    LeagueForm, DivisionForm, DivisionCountForm, TeamEntryForm
     )
 
 
@@ -202,14 +201,14 @@ def create_game(request):
     if request.method == 'POST':
         form = GameForm(request.POST)
         if form.is_valid():
-            form.save()
-            return redirect('stats:competition-games')  # or wherever
+            game = form.save()
+            return redirect(
+                'stats:competition-games',
+                competition_id=game.competition_id
+            )
     else:
-        form = GameForm(request.GET or None)
-
-    return render(request, 'stats/game_form.html', {
-        'form': form
-    })
+        form = GameForm()
+    return render(request, 'stats/game_form.html', {'form': form})
 
 
 def delete_game_view(request, game_id):
@@ -328,136 +327,108 @@ def enter_lineups_view(request, game_id):
     })
 
 
-def enter_statlines_view(request, game_id):
+def enter_player_stats(request, game_id, player_id):
     game = get_object_or_404(Game, pk=game_id)
 
-    # Step 1a: seed statlines for starters
-    lineup_entries = (
-        LineupEntry.objects
-        .filter(game=game)
-        .select_related('player', 'team')
-    )
-    for entry in lineup_entries:
-        team = entry.team
-        if not team:
-            # shouldn’t happen if your LineupEntry always has a team
-            continue
-
-        PlayerStatLine.objects.get_or_create(
-            game=game,
-            player=entry.player,
-            team=team,
-            defaults={
-                'position': entry.fielding_position,
-                # batting defaults
-                'ab': 0, 'r': 0, 'h': 0, 'doubles': 0, 'triples': 0,
-                'hr': 0, 'rbi': 0, 'bb': 0, 'so': 0, 'sf': 0,
-                'hbp': 0, 'sb': 0, 'cs': 0, 'dp': 0,
-                # pitching defaults (IP stored as outs, e.g. 0)
-                'ip_outs': 0, 'ra': 0, 'er': 0, 'h_allowed': 0,
-                'bb_allowed': 0, 'k_thrown': 0,
-                'decision': '',
-                'hb': 0, 'balk': 0, 'wp': 0, 'ibb': 0,
-                # defense defaults
-                'po': 0, 'a': 0, 'e': 0, 'pb': 0,
-            }
-        )
-
-    # Step 1b: seed statlines for subs
-    subs = (
-        Substitution.objects
-        .filter(game=game)
-        .select_related('player_in', 'team')
-    )
-    for sub in subs:
-        team = sub.team
-        if not team:
-            continue
-
-        PlayerStatLine.objects.get_or_create(
-            game=game,
-            player=sub.player_in,
-            team=team,
-            defaults={
-                'position': sub.position,
-                # same defaults as above…
-                'ab': 0, 'r': 0, 'h': 0, 'doubles': 0, 'triples': 0,
-                'hr': 0, 'rbi': 0, 'bb': 0, 'so': 0, 'sf': 0,
-                'hbp': 0, 'sb': 0, 'cs': 0, 'dp': 0,
-                'ip_outs': 0, 'ra': 0, 'er': 0, 'h_allowed': 0,
-                'bb_allowed': 0, 'k_thrown': 0,
-                'decision': '',
-                'hb': 0, 'balk': 0, 'wp': 0, 'ibb': 0,
-                'po': 0, 'a': 0, 'e': 0, 'pb': 0,
-            }
-        )
-
-    # Step 2: load all statlines for this game
-    statlines = (
-        PlayerStatLine.objects
-        .filter(game=game)
-        .select_related('player', 'team')
-        .order_by('team__serial', 'player__last_name')
-    )
-
-    # Step 3: bind formsets
-    if request.method == 'POST':
-        batting_formset = BattingStatFormSet(
-            request.POST, queryset=statlines, prefix='bat'
-        )
-        pitchdef_formset = PitchDefStatFormSet(
-            request.POST, queryset=statlines, prefix='pitchdef'
-        )
-
-        # … your “restore team” loop …
-
-        # DEBUG: print out why the formset is invalid
-        if not batting_formset.is_valid() or not pitchdef_formset.is_valid():
-            print("⚠️ Batting errors:", batting_formset.errors)
-            print("⚠️ Batting non-form errors:", batting_formset.non_form_errors())
-            print("⚠️ Pitching/Def errors:", pitchdef_formset.errors)
-            print("⚠️ Pitching/Def non-form errors:", pitchdef_formset.non_form_errors())
-        else:
-            batting_formset.save()
-            pitchdef_formset.save()
-            return redirect('stats:game-select')
-        
-        # restore team on any instance missing it
-        for form in batting_formset.forms + pitchdef_formset.forms:
-            if form.instance.team_id is None:
-                original = next((s for s in statlines if s.pk == form.instance.pk), None)
-                if original:
-                    form.instance.team = original.team
-
-        if batting_formset.is_valid() and pitchdef_formset.is_valid():
-            batting_formset.save()
-            pitchdef_formset.save()
-            return redirect('stats:game-select')
-    else:
-        batting_formset = BattingStatFormSet(queryset=statlines, prefix='bat')
-        pitchdef_formset = PitchDefStatFormSet(queryset=statlines, prefix='pitchdef')
-
-    # Step 4: split into away vs home by raw FK
-    def split_by_team(fs):
-        return {
-            'away': [f for f in fs if f.instance.team_id == game.away_team.serial],
-            'home': [f for f in fs if f.instance.team_id == game.home_team.serial],
+    statline, created = PlayerStatLine.objects.get_or_create(
+        game=game,
+        player_id=player_id,
+        defaults={
+            # your seed-defaults here…
+            'position': '…',
+            'ab':0, 'r':0, 'h':0, 'doubles':0, 'triples':0,
+            'hr':0, 'rbi':0, 'bb':0, 'so':0, 'sf':0, 'hbp':0,
+            'sb':0, 'cs':0, 'dp':0,
+            'ip_outs':0, 'ra':0, 'er':0, 'h_allowed':0,
+            'bb_allowed':0, 'k_thrown':0, 'decision':'',
+            'hb':0, 'balk':0, 'wp':0, 'ibb':0,
+            'po':0, 'a':0, 'e':0, 'pb':0,
+            'threw': False,
         }
+    )
 
-    batting_split = split_by_team(batting_formset)
-    pitchdef_split = split_by_team(pitchdef_formset)
+    # build the “initial” dicts from whatever’s in the DB now
+    off_init = { f: getattr(statline, f) for f in OffenseForm.base_fields }
+    def_init = { f: getattr(statline, f) for f in DefenseForm.base_fields }
+    pit_init = { f: getattr(statline, f) for f in PitchingForm.base_fields }
 
-    # Step 5: zip batting + pitching forms
-    batting_pitchdef = {
-        'away': list(zip(batting_split['away'], pitchdef_split['away'])),
-        'home': list(zip(batting_split['home'], pitchdef_split['home'])),
-    }
+    # instantiate forms
+    if request.method == 'POST':
+        off_form = OffenseForm(request.POST, prefix='off', initial=off_init)
+        def_form = DefenseForm(request.POST, prefix='def', initial=def_init)
+        pit_form = (
+           PitchingForm(request.POST, prefix='pit', initial=pit_init)
+           if (statline.threw or statline.position.upper()=='P') else None
+        )
 
-    return render(request, 'stats/enter_statlines.html', {
-        'game': game,
-        'batting_pitchdef_forms': batting_pitchdef,
-        'batting_mgmt': batting_formset.management_form,
-        'pitchdef_mgmt': pitchdef_formset.management_form,
+        if off_form.is_valid() and def_form.is_valid() and (pit_form is None or pit_form.is_valid()):
+            # overwrite batting
+            for field, val in off_form.cleaned_data.items():
+                setattr(statline, field, val or 0)
+            # overwrite defense
+            for field, val in def_form.cleaned_data.items():
+                setattr(statline, field, val or 0)
+            # overwrite pitching
+            if pit_form:
+                data = pit_form.cleaned_data
+                statline.ip_outs    = data['ip_outs']
+                statline.ra         = data['ra']
+                statline.er         = data['er']
+                statline.h_allowed  = data['h_allowed']
+                statline.hra        = data['hra']
+                statline.k_thrown   = data['k_thrown']
+                statline.bb_allowed = data['bb_allowed']
+                statline.decision   = data['decision'] or ''
+                statline.balk       = data['balk']
+                statline.wp         = data['wp']
+                statline.ibb        = data['ibb']
+                statline.threw      = statline.ip_outs > 0
+
+            statline.save()
+
+            # decide where to go next
+            all_ids = list(
+                PlayerStatLine.objects
+                  .filter(game=game)
+                  .values_list('player_id', flat=True)
+            )
+            idx = all_ids.index(player_id)
+
+            if 'next' in request.POST and idx < len(all_ids) - 1:
+                # go to the next player's page
+                return redirect(
+                    'stats:enter-player-stats',
+                    game_id,
+                    all_ids[idx+1]
+                )
+            # once you're done, go back to the overview
+            return redirect('stats:enter-stats', game_id)
+
+    else:
+        # GET: unbound forms show current DB values
+        off_form = OffenseForm(prefix='off', initial=off_init)
+        def_form = DefenseForm(prefix='def', initial=def_init)
+        pit_form = (
+           PitchingForm(prefix='pit', initial=pit_init)
+           if (statline.threw or statline.position.upper()=='P') else None
+        )
+
+    # compute whether there *is* a “next” player
+    all_ids = list(
+        PlayerStatLine.objects
+          .filter(game=game)
+          .values_list('player_id', flat=True)
+    )
+    idx = all_ids.index(player_id)
+    next_exists = (idx < len(all_ids) - 1)
+
+    return render(request, 'stats/enter_player.html', {
+        'game':        game,
+        'statline':    statline,
+        'off_form':    off_form,
+        'def_form':    def_form,
+        'pit_form':    pit_form,
+        'next_exists': next_exists,
     })
 
 
@@ -556,49 +527,6 @@ def enter_inning_scores(request, game_id):
         'home_team': game.home_team,
         'away_team': game.away_team,
     })
-
-
-# def enter_enhanced_stats(request, game_id):
-#     game = get_object_or_404(Game, pk=game_id)
-
-#     # 1a: pull every player who has a lineup entry this game
-#     lineup_entries = LineupEntry.objects.filter(game=game)
-#     for entry in lineup_entries:
-#         # create a stat‐line for this player/team if it doesn't exist yet
-#         PlayerStatLine.objects.get_or_create(
-#             game=game,
-#             player=entry.player,
-#             team=entry.team,
-#             defaults={
-#                 'pa': 0, 'ab': 0, 'h': 0,  'r': 0, 'rbi': 0,
-#                 'bb': 0, 'k': 0,  'hr': 0, 'sb': 0, 'cs': 0,
-#                 'ip': 0.0, 'er': 0, 'h_allowed': 0, 'bb_allowed': 0,
-#                 'k_thrown': 0, 'decision': '',
-#                 'po': 0, 'a': 0, 'e': 0, 'position': entry.fielding_position
-#             }
-#         )
-
-#     # 1b: build a formset over those rows
-#     EnhancedFormSet = modelformset_factory(
-#         PlayerStatLine,
-#         form=EnhancedStatForm,
-#         extra=0,
-#         can_delete=False
-#     )
-#     qs = PlayerStatLine.objects.filter(game=game).order_by('team__id', 'player__last_name')
-
-#     if request.method == 'POST':
-#         formset = EnhancedFormSet(request.POST, queryset=qs, prefix='enh')
-#         if formset.is_valid():
-#             formset.save()
-#             return redirect('stats:game-select')
-#     else:
-#         formset = EnhancedFormSet(queryset=qs, prefix='enh')
-
-#     return render(request, 'stats/enter_enhanced_stats.html', {
-#         'game': game,
-#         'formset': formset,
-#     })
 
 
 def competition_select_view(request):
@@ -993,16 +921,13 @@ def _annotate_standings(qs, competition):
     return rows
 
 
-def competition_games_view(request):
-    comp_ids = request.GET.getlist('competitions')
-    competitions = get_list_or_404(Competition, pk__in=comp_ids)
-
-    games = Game.objects.filter(competition__in=competitions).order_by('date_played')
-
+def competition_games_view(request, competition_id):
+    competition = get_object_or_404(Competition, pk=competition_id)
+    games       = Game.objects.filter(competition=competition) \
+                              .order_by('date_played')
     return render(request, 'stats/competition_games.html', {
-        'games': games,
-        'qs': request.GET.urlencode(),
-        'competitions': competitions,
+        'competition': competition,
+        'games':        games,
     })
 
 
@@ -1257,3 +1182,61 @@ class StandingsView(ListView):
                 output_field=IntegerField()
             )
         ).order_by('-wins', '-win_pct')
+
+
+def stats_overview(request, game_id):
+    game = get_object_or_404(Game, pk=game_id)
+
+    # ─── SEED STATLINES ────────────────────────────────────────────────────────
+    # for each starter…
+    for entry in LineupEntry.objects.filter(game=game).select_related('player','team'):
+        PlayerStatLine.objects.get_or_create(
+            game=game,
+            player=entry.player,
+            team=entry.team,
+            defaults={
+                'position': entry.fielding_position,
+                # all your existing defaults:
+                'ab':0, 'r':0, 'h':0, 'doubles':0, 'triples':0,
+                'hr':0, 'rbi':0, 'bb':0, 'so':0, 'sf':0,
+                'hbp':0, 'sb':0, 'cs':0, 'dp':0,
+                'ip_outs':0, 'ra':0, 'er':0, 'h_allowed':0,
+                'bb_allowed':0, 'k_thrown':0, 'decision':'',
+                'hb':0, 'balk':0, 'wp':0, 'ibb':0,
+                'po':0, 'a':0, 'e':0, 'pb':0,
+                'threw': False,
+            }
+        )
+
+    # for any substitutions…
+    for sub in Substitution.objects.filter(game=game).select_related('player_in','team'):
+        PlayerStatLine.objects.get_or_create(
+            game=game,
+            player=sub.player_in,
+            team=sub.team,
+            defaults={
+                'position': sub.position,
+                # same defaults as above…
+                'ab':0, 'r':0, 'h':0, 'doubles':0, 'triples':0,
+                'hr':0, 'rbi':0, 'bb':0, 'so':0, 'sf':0,
+                'hbp':0, 'sb':0, 'cs':0, 'dp':0,
+                'ip_outs':0, 'ra':0, 'er':0, 'h_allowed':0,
+                'bb_allowed':0, 'k_thrown':0, 'decision':'',
+                'hb':0, 'balk':0, 'wp':0, 'ibb':0,
+                'po':0, 'a':0, 'e':0, 'pb':0,
+                'threw': False,
+            }
+        )
+    # ─────────────────────────────────────────────────────────────────────────
+
+    participants = (
+        PlayerStatLine.objects
+          .filter(game=game)
+          .select_related('player')
+          .order_by('player__last_name')
+    )
+
+    return render(request, 'stats/overview.html', {
+        'game':         game,
+        'participants': participants,
+    })

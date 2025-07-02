@@ -309,7 +309,8 @@ def rate_player_career(request, player_id):
             cursor.execute("""
                 SELECT
                     SUM(BFP), SUM(H), SUM(BB), SUM(HBP), SUM(SH), SUM(SF),
-                    SUM(G), SUM(IPouts), SUM(SO), SUM(HR), SUM(WP)
+                    SUM(G), SUM(IPouts), SUM(SO), SUM(HR), SUM(WP),
+                    COUNT(DISTINCT yearID) AS seasons
                 FROM Pitching
                 WHERE playerID = %s
             """, (player_id,))
@@ -483,12 +484,13 @@ def rate_player_career(request, player_id):
         if OppAB > 0:
             BAOpp = round(pitching_stats['HA'] / OppAB, 3)
         else: BAOpp = .4
+        wp_avg = round(pitching_stats['WP'] / pitching[11])
         pitch_string = (
             gopher(pitching_stats['HRA'], pitching_stats['HA']) +
             pitch_letter(BAOpp) +
             innings_of_effectiveness(pitching_stats['G'], pitching_stats['IP']) + ' ' +
             pitcher_bb_k_hbp(pitching_stats['BF'], pitching_stats['BB'], pitching_stats['SO'], pitching_stats['HBP']) + ' ' +
-            wild_pitch(pitching_stats['WP'])
+            wild_pitch(wp_avg)
         )
         pcn = pitcher_control_number(pitching_stats['BB'], pitching_stats['HBP'], pitching_stats['HA'], pitching_stats['BF'])
         pitch_ph = probable_hit_number(pitching_stats['HA'], pitching_stats['BF'])

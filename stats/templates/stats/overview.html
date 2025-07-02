@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Enter Stats – {{ game }}{% endblock %}
+
+{% block content %}
+  <h2>Enter stats for {{ game.away_team }} @ {{ game.home_team }} on {{ game.date_played }}</h2>
+
+  <div class="form-group">
+    <label for="player-select">Select a player:</label>
+    <select id="player-select" class="form-control">
+      <option value="">-- Select a player --</option>
+      {# Loop through PlayerStatLine instances to list each player #}
+      {% for line in participants %}
+        <option value="{{ line.player.id }}">
+          {{ line.player.first_name }} {{ line.player.last_name }}
+        </option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <script>
+    document.getElementById('player-select').addEventListener('change', function() {
+      var playerId = this.value;
+      if (playerId) {
+        // Build the per-player URL by replacing the dummy '0' at the end
+        var url = "{% url 'stats:enter-player-stats' game.pk 0 %}";
+        window.location.href = url.replace(/0\/$/, playerId + "/");
+      }
+    });
+  </script>
+{% endblock %}
