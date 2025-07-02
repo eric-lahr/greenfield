@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Enter Substitutions{% endblock %}
+
+{% block content %}
+{% load my_filters %}
+<h4>Substitution for {{ team }}</h4>
+<div class="container mt-4">
+  <h2>Enter Substitution for {{ game.away_team }} @ {{ game.home_team }} ({{ game.date_played }})</h2>
+  <form method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit" class="btn btn-success">Save Substitution</button>
+  </form>
+  <br>
+  <a href="{% url 'stats:game-select' %}" class="btn btn-secondary">Back to Game List</a>
+</div>
+{% endblock %}

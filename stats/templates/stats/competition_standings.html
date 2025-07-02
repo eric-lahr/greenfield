@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <h1>{{ competition.name }} Standings</h1>
+
+  {# Structured competition: group by league (and divisions) #}
+  {% if structured %}
+    {% for league in structured %}
+      <h2 class="mt-4">{{ league.name }}</h2>
+
+      {# If this league has subdivisions: #}
+      {% if league.divisions %}
+        {% for division in league.divisions %}
+          <h3 class="mt-3">{{ division.name }}</h3>
+          <table class="table table-striped">
+            <thead>
+              <tr>
+                <th>Team</th>
+                <th>W</th>
+                <th>L</th>
+                <th>GB</th>
+                <th>PCT</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in division.rows %}
+                <tr>
+                  <td>{{ row.display_name }}</td>
+                  <td>{{ row.wins }}</td>
+                  <td>{{ row.losses }}</td>
+                  <td>{% if forloop.first %}—{% else %}{{ row.gb }}{% endif %}</td>
+                  <td>{{ row.win_pct|floatformat:3 }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        {% endfor %}
+      {% else %}
+        {# No divisions, just a league‐level table #}
+        <table class="table table-striped">
+          <thead>
+            <tr>
+              <th>Team</th>
+              <th>W</th>
+              <th>L</th>
+              <th>GB</th>
+              <th>PCT</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in league.rows %}
+              <tr>
+                <td>{{ row.display_name }}</td>
+                <td>{{ row.wins }}</td>
+                <td>{{ row.losses }}</td>
+                <td>{% if forloop.first %}—{% else %}{{ row.gb }}{% endif %}</td>
+                <td>{{ row.win_pct|floatformat:3 }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% endif %}
+    {% endfor %}
+
+  {# Unstructured competition: one flat table #}
+  {% elif unstructured %}
+    <table class="table table-striped mt-4">
+      <thead>
+        <tr>
+          <th>Team</th>
+          <th>W</th>
+          <th>L</th>
+          <th>GB</th>
+          <th>PCT</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in unstructured %}
+          <tr>
+            <td>{{ row.display_name }}</td>
+            <td>{{ row.wins }}</td>
+            <td>{{ row.losses }}</td>
+            <td>{% if forloop.first %}—{% else %}{{ row.gb }}{% endif %}</td>
+            <td>{{ row.win_pct|floatformat:3 }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+  {# No data at all #}
+  {% else %}
+    <p class="mt-4"><em>No teams or games to display yet.</em></p>
+  {% endif %}
+{% endblock %}

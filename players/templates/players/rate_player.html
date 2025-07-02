@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}Career Player Search{% endblock %}
+{% block content %}
+{% load my_filters %}
+    <div class="jumbotron text-center">
+        <h1><strong> {{ name_first }} {{ name_last }}</h1>    
+        <h3>
+            {% if career_mode %}
+                All Time {{ greenfield.team_name }}
+            {% else %}
+                {{ year }} {{ greenfield.team_name }}
+            {% endif %}
+            </h3>              
+        <p>bats: {{ greenfield.bats }}  throws: {{ greenfield.throws }}</p>
+    </div>
+    <div class="container">
+        <div class="row">
+            <div class="col-sm-4">
+                <h2>Batting Stats</h2>
+                    <rdiv class="row">
+                        <div class="col-sm-6">
+                            <ul>
+                                <li>G: {{ batting.10|default:0 }}</li>
+                                <li>H: {{ batting.0|default:0 }}</li>
+                                <li>AB: {{ batting.1|default:0 }}</li>
+                                <li>2B: {{ batting.7|default:0 }}</li>
+                                <li>3B: {{ batting.3|default:0 }}</li>
+                                <li>HR: {{ batting.2|default:0 }}</li>
+                            </ul>
+                        </div>
+                        <div class="col-sm-6">
+                            <ul>
+                                <li>RBI: {{ batting.8|default:0 }}</li>
+                                <li>PA: {{ pa }}</li>
+                                <li>BB: {{ batting.4|default:0 }}</li>
+                                <li>SO: {{ batting.9|default:0 }}</li>
+                                <li>HBP: {{ batting.5|default:0 }}</li>
+                                <li>SB: {{ batting.6|default:0 }}</li>
+                            </ul>
+                        </div>
+                    </rdiv class="row">
+            </div>
+            <div class="col-sm-4">
+                <h2>Pitching Stats</h2>
+                    <div class="row">
+                        <div class="col-sm-6">
+                                <ul>
+                                    <li>BFP: {{ pitching.0|default:0 }}</li>
+                                    <li>H: {{ pitching.1|default:0 }}</li>
+                                    <li>HR: {{ pitching.8|default:0 }}</li>
+                                    {% if career_mode %}
+                                    <li>BAOpp: {{ baopp|default:0 }}</li>
+                                    {% else %}
+                                    <li>BAOpp: {{ pitching.4|default:0 }}</li>
+                                    {% endif %}
+                                </ul>
+                            </div>
+                            <div class="col-sm-6">
+                                <ul>
+                                    <li>G: {{ pitching.5|default:0 }}</li>
+                                    <li>IPouts: {{ pitching.6|default:0 }}</li>
+                                    <li>BB: {{ pitching.2|default:0 }}</li>
+                                    <li>SO: {{ pitching.7|default:0 }}</li>
+                                    <li>HBP: {{ pitching.3|default:0 }}</li>
+                                </ul>
+                        </div>
+                    </div>
+            </div>
+            <div class="col-sm-4">
+                <h2>Fielding Stats</h2>
+                {% if fielding %}
+                    <ul>
+                    {% for row in fielding %}
+                        <li>
+                            Position: {{ row.0 }} – G: {{ row.4|default:0 }} PO: {{ row.1|default:0 }}, A: {{ row.2|default:0 }}, E: {{ row.3|default:0 }}
+                        </li>
+                    {% endfor %}
+                    </ul>
+                {% else %}
+                    <p>No fielding records with 15+ games.</p>
+                {% endif %}
+
+                <h3>Catcher Stats (Fielding)</h3>
+                <ul>
+                    <li>SB Allowed: {{ sb }}</li>
+                    <li>CS: {{ cs }}</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    <hr class="thick">
+    <div class="container">
+        <div class="row">
+            <div class="col-sm-4">
+                <h3>Sherco Offensive Ratings</h3>
+                <p> {{ greenfield.offense }} ph-{{ greenfield.bat_prob_hit }}</p>
+            </div>
+            <div class="col-sm-4">
+                <h3>Sherco Pitching Ratings</h3>
+                <p> {{ greenfield.pitching}} pcn-{{ greenfield.pitch_ctl }} pph-{{ greenfield.pitch_prob_hit }}  </p>
+            </div>
+            <div class="col-sm-4">
+                <h3>Sherco Defensive Ratings</h3>
+                {% for key, value in greenfield.positions.items %}
+                    <p>{{ key }} {{ value }}</p>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    <form action="{% url 'players:create_record' %}" method="post">
+        {% csrf_token %}
+        <input type="hidden" name="year" value="{{ year }}">
+        <input type="hidden" name="team_name" value="{{ team_name }}">
+        <input type="hidden" name="name_first" value="{{ name_first }}">
+        <input type="hidden" name="name_last" value="{{ name_last }}">
+        <button type="submit" class="btn btn-primary mt-4">Create Record</button>
+    </form>          
+{% endblock %}

@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block content %}
+  <h1>Enter Game Result</h1>
+  <form method="post" class="mt-4">
+    {% csrf_token %}
+
+    <div class="row mb-3">
+      <div class="col-md-6">
+        {{ form.competition.label_tag }}
+        {{ form.competition }}
+      </div>
+      <div class="col-md-6">
+        {{ form.date_played.label_tag }}
+        {{ form.date_played }}
+      </div>
+    </div>
+
+    <div class="row mb-3">
+      <div class="col-md-5">
+        <h5>Home</h5>
+        {{ form.home_team.label_tag }}
+        {{ form.home_team }}
+      </div>
+      <div class="col-md-2 d-flex align-items-end">
+        {{ form.home_score }}
+      </div>
+      <div class="col-md-5">
+        <h5>Away</h5>
+        {{ form.away_team.label_tag }}
+        {{ form.away_team }}
+      </div>
+      <div class="col-md-2 d-flex align-items-end">
+        {{ form.away_score }}
+      </div>
+    </div>
+
+    <div class="row mb-4">
+      <div class="col-md-6">
+        {{ form.status.label_tag }}
+        {{ form.status }}
+      </div>
+    </div>
+
+    <button type="submit" class="btn btn-primary">Save Game</button>
+  </form>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      console.log("Game-form JS loaded");
+      const compSelect = document.getElementById("id_competition");
+      const homeSelect = document.getElementById("id_home_team");
+      const awaySelect = document.getElementById("id_away_team");
+      if (!compSelect || !homeSelect || !awaySelect) {
+        console.error("Select elements missing", compSelect, homeSelect, awaySelect);
+        return;
+      }
+
+      async function updateTeams() {
+        const compId = compSelect.value;
+        console.log("Loading teams for competition", compId);
+        if (!compId) return;
+        const urlTemplate = "{% url 'stats:competition-teams-json' pk=0 %}";
+        const url = urlTemplate.replace("0", compId);
+        try {
+          const resp = await fetch(url);
+          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+          const { teams } = await resp.json();
+          console.log("Teams from JSON:", teams);
+          [homeSelect, awaySelect].forEach(sel => {
+            sel.innerHTML = "";
+            teams.forEach(t => {
+              const opt = document.createElement("option");
+              opt.value = t.pk;
+              opt.textContent = t.display;
+              sel.appendChild(opt);
+            });
+          });
+        } catch (err) {
+          console.error("Failed to update teams:", err);
+        }
+      }
+
+      updateTeams();
+      compSelect.addEventListener("change", updateTeams);
+    });
+  </script>
+{% endblock %}

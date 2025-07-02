@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container">
+  <h2>Inning Scores – {{ game.away_team }} @ {{ game.home_team }}</h2>
+  <form method="post">
+    {% csrf_token %}
+    {{ away_formset.management_form }}
+    {{ home_formset.management_form }}
+
+    <table class="table table-bordered text-center">
+      <thead>
+        <tr>
+          <th>Team</th>
+          {% for form in away_formset %}
+            <th>{{ form.instance.inning }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>{{ away_team }}</td>
+          {% for form in away_formset %}
+            {{ form.inning.as_hidden }}
+            {% for hidden in form.hidden_fields %}
+              {{ hidden }}
+            {% endfor %}
+            <td>{{ form.runs }}</td>
+          {% endfor %}
+        </tr>
+        <tr>
+          <td>{{ home_team }}</td>
+          {% for form in home_formset %}
+            {{ form.inning.as_hidden }}
+            {% for hidden in form.hidden_fields %}
+              {{ hidden }}
+            {% endfor %}
+            <td>{{ form.runs }}</td>
+          {% endfor %}
+        </tr>
+      </tbody>
+    </table>
+    <div class="mb-3">
+      {% comment %} Pass along the current extra count so it increments each click {% endcomment %}
+      {% with current_extra=request.GET.extra|default:0|add:"0" %}
+        <a href="?extra={{ current_extra|add:1 }}" class="btn btn-outline-secondary btn-sm">
+          Add extra inning
+        </a>
+      {% endwith %}
+    </div>
+    <button type="submit" class="btn btn-success">Save Inning Scores</button>
+  </form>
+</div>
+{% endblock %}

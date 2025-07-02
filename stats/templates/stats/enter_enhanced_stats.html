@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Enhanced Stats — {{ game.away_team }} @ {{ game.home_team }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+  <h2>Enhanced Stats for {{ game.away_team }} @ {{ game.home_team }} ({{ game.date_played }})</h2>
+  <form method="post">
+    {% csrf_token %}
+    {{ formset.management_form }}
+    <table class="table table-sm table-bordered">
+      <thead>
+        <tr>
+          <th>Player</th>
+          <th>PO</th>
+          <th>A</th>
+          <th>E</th>
+          <th>SB</th>
+          <th>CS</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for form in formset %}
+        <tr>
+          <td>{{ form.instance.player.first_name }} {{ form.instance.player.last_name }}</td>
+          <td>{{ form.po }}</td>
+          <td>{{ form.a }}</td>
+          <td>{{ form.e }}</td>
+          <td>{{ form.sb }}</td>
+          <td>{{ form.cs }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <button type="submit" class="btn btn-success">Save Enhanced Stats</button>
+  </form>
+</div>
+{% endblock %}

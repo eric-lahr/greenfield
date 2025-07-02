@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Competition Dashboard{% endblock %}
+{% block content %}
+  <h2>Dashboard for:
+    {% for c in competitions %}
+      <span class="badge bg-secondary">{{ c.name }}</span>
+    {% endfor %}
+  </h2>
+
+  <nav class="btn-group mb-4">
+    <a href="{% url 'stats:competition-team-stats' %}?{{ qs }}" class="btn btn-outline-primary">
+      Team Stats
+    </a>
+    <a href="{% url 'stats:competition-player-stats' %}?{{ qs }}" class="btn btn-outline-primary">
+      Player Stats
+    </a>
+    <a href="{% url 'stats:competition-leaders' %}?{{ qs }}" class="btn btn-outline-primary">
+      League Leaders
+    </a>
+    <a href="{% url 'stats:competition-standings' %}?{{ qs }}" class="btn btn-outline-primary">
+      Standings
+    </a>
+    <a href="{% url 'stats:competition-games' %}?{{ qs }}" class="btn btn-outline-primary">
+      Games
+    </a>
+  </nav>
+{% endblock %}

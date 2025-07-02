@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Competitions{% endblock %}
+
+{% block content %}
+{% load my_filters %}
+  <div class="container mt-4">
+    <h2>Competitions</h2>
+    <a href="{% url 'stats:competition-create' %}" class="btn btn-success mb-3">+ New Competition</a>
+    <ul class="list-group">
+      {% for competition in object_list %}
+        <li class="list-group-item">
+          <strong>{{ competition.name }}</strong><br>
+          <small>{{ competition.description }}</small>
+        </li>
+      {% empty %}
+        <li class="list-group-item">No competitions created yet.</li>
+      {% endfor %}
+    </ul>
+  </div>
+{% endblock %}

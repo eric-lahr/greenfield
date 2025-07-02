@@ -1,0 +1,32 @@
+<!-- templates/players/create_players_from_team.html -->
+{% extends "base.html" %}
+{% block title %}Create Players from Team{% endblock %}
+{% block content %}
+{% load my_filters %}
+<form method="post">
+  {% csrf_token %}
+  <label for="year">Year:</label>
+  <input type="text" id="year" name="year"><br><br>
+
+  <label for="team_name">Team Name:</label>
+  <input type="text" id="team_name" name="team_name"><br><br>
+
+  <input type="submit" value="Search">
+</form>
+{% if messages %}
+  {% for message in messages %}
+    <div class="alert alert-info">{{ message }}</div>
+  {% endfor %}
+{% endif %}
+
+{% if players %}
+  <h3>Players:</h3>
+  <ul>
+    {% for player in players %}
+      <li><a href="{% url 'players:view_player' player.playerID %}">{{ player.nameFirst }} {{ player.nameLast }}</a></li>
+    {% endfor %}
+  </ul>
+{% elif searched %}
+  <p>No players found or team not recognized.</p>
+{% endif %}
+{% endblock %}

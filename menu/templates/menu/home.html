@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Main Menu{% endblock %}
+
+{% block content %}
+<h2>Players</h2>
+<ul>
+    <li><a href="{% url 'players:create_players_from_team' %}">Create Players from Team</a></li>
+    <li><a href="{% url 'players:search_career_players' %}" >Create Career Player</a></li>
+    <li><a href="{% url 'players:create_custom_player' %}" >Create Custom Player</a></li>
+    <li><a href="{% url 'players:select_team_for_edit' %}">Edit Player</a></li>
+</ul>
+
+<h2>Teams</h2>
+<ul>
+    <li><a href="{% url 'create' %}">Create Team</a></li>
+    <li><a href="{% url 'new_view_team' %}">View Team</a></li>
+    <li><a href="{% url 'edit' %}">Edit Team</a></li>
+</ul>
+
+<h2>Competitions</h2>
+<ul>
+    <li><a href="{% url 'stats:competition-select' %}">Stats and Standings</a></li>
+    <li><a href="{% url 'stats:create-game' %}">Enter Game Result</a></li>
+    <li><a href="{% url 'stats:game-select' %}">Enter Lineups & Stats</a></li>
+    <li><a href="{% url 'stats:competition-add' %}">Create New Competition</a></li>
+</ul>
+
+<!-- Future sections for Stadiums, Games, and Stats -->
+<h2>Coming Soon</h2>
+<ul>
+    <li>Stadiums</li>
+    <li>Games</li>
+</ul>
+{% endblock %}

@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Create Player Record{% endblock %}
+{% block content %}
+{% load my_filters %}
+<div class="jumbotron text-center">
+  <h1><strong> {{ name_first }} {{ name_last }}</h1>
+  <p>{{ year }} {{ team_name }}</p>
+  <p>bats: {{ greenfield.bats }}  throws: {{ greenfield.throws }}</p>
+</div>
+
+<h2>Confirm Player Record</h2>
+
+<form method="post">
+  {% csrf_token %}
+
+  <!-- Hidden identity fields -->
+  <input type="hidden" name="name_first" value="{{ name_first }}">
+  <input type="hidden" name="name_last" value="{{ name_last }}">
+  <input type="hidden" name="year" value="{{ year }}">
+  <input type="hidden" name="team_name" value="{{ team_name }}">
+
+  <h4>Player Details</h4>
+  {% for field in form %}
+    <div class="form-group">
+      {{ field.label_tag }}
+      {{ field }}
+      {% if field.errors %}
+        <div class="text-danger small">{{ field.errors }}</div>
+      {% endif %}
+    </div>
+  {% endfor %}
+
+  <h4>Position Ratings</h4>
+  {{ formset.management_form }}
+  {% for subform in formset %}
+    <div class="form-row mb-2">
+      <div class="form-group col-md-5">
+        {{ subform.position.label_tag }}
+        {{ subform.position }}
+        {% if subform.position.errors %}
+          <div class="text-danger small">{{ subform.position.errors }}</div>
+        {% endif %}
+      </div>
+      <div class="form-group col-md-5">
+        {{ subform.rating.label_tag }}
+        {{ subform.rating }}
+        {% if subform.rating.errors %}
+          <div class="text-danger small">{{ subform.rating.errors }}</div>
+        {% endif %}
+      </div>
+      <div class="form-group col-md-2">
+        {{ subform.DELETE }} <label>Remove</label>
+      </div>
+    </div>
+  {% endfor %}
+
+  <button type="submit" name="confirm_save" class="btn btn-success mt-3">Confirm and Save</button>
+
+</form>
+{% endblock %}

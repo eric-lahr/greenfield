@@ -1,0 +1,90 @@
+{% load filters %}
+{% block content %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>View Team</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.3.1/dist/css/bootstrap.min.css" />
+</head>
+<body>
+<div class="container mt-4">
+  <div class="row mb-3">
+    <!-- Team Selection -->
+    <div class="col-md-4">
+      <h5>Select a Team</h5>
+      <form method="get">
+        <select name="team_id" class="form-control form-control-sm" onchange="this.form.submit()">
+          <option value="">-- Select a team --</option>
+          {% for team in teams %}
+            <option value="{{ team.id }}" {% if team.serial|stringformat:"s" == selected_team_id %}selected{% endif %}>
+              {{ team.first_name }} {{ team.team_name }}
+            </option>
+          {% endfor %}
+        </select>
+      </form>
+    </div>
+
+    <!-- Buttons -->
+    {% if selected_team_id %}
+    <div class="col-md-8 d-flex flex-wrap align-items-end justify-content-end">
+      <div class="btn-group btn-group-sm mb-2" role="group">
+        <a href="{% url 'create_team_pdf' selected_team_id %}" class="btn btn-outline-primary">Team PDF</a>
+        <a href="{% url 'create_pdf_batters' selected_team_id %}" class="btn btn-outline-primary">Batters PDF</a>
+        <a href="{% url 'create_pdf_pitchers' selected_team_id %}" class="btn btn-outline-primary">Pitchers PDF</a>
+        <a href="{% url 'create_csv_batters' selected_team_id %}" class="btn btn-outline-success">Batters CSV</a>
+        <a href="{% url 'create_csv_pitchers' selected_team_id %}" class="btn btn-outline-success">Pitchers CSV</a>
+      </div>
+      <a href="{% url 'menu:home' %}" class="btn btn-secondary btn-sm ml-3">Main Menu</a>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Team Name -->
+  {% if selected_team_id %}
+    <h5 class="mb-3">{{ teams|get_team_name:selected_team_id }}</h5>
+  {% endif %}
+
+  <!-- Players Table -->
+  {% if players %}
+    <table class="table table-striped table-bordered table-sm">
+      <thead class="thead-dark">
+        <tr>
+          <th>Name</th>
+          <th>B-T</th>
+          <th>Offense</th>
+          <th>Defense</th>
+          <th>Pitching</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for player in players %}
+          <tr>
+            <td>{{ player.first_name }} {{ player.last_name }}</td>
+            <td>{{ player.bats }}-{{ player.throws }}</td>
+            <td>
+              {% if player.offense %}{{ player.offense }} {% endif %}
+              {% if player.bat_prob_hit %}PH-{{ player.bat_prob_hit }}{% endif %}
+            </td>
+            <td>
+              {% for pr in player_ratings|get_item:player.id %}
+                {{ pr.position.name }}: {{ pr.rating }}{% if not forloop.last %}, {% endif %}
+              {% empty %}
+                N/A
+              {% endfor %}
+            </td>
+            <td>
+              {% if player.pitching %}{{ player.pitching }} {% endif %}
+              {% if player.pitch_ctl %}PCN-{{ player.pitch_ctl }} {% endif %}
+              {% if player.pitch_prob_hit %}PPH-{{ player.pitch_prob_hit }}{% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endif %}
+</div>
+</body>
+</html>
+{% endblock %}
