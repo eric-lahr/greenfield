@@ -78,6 +78,9 @@ yarn-error.log
 *.orig
 *.log
 *.csv
+*.sql
+*.zip
+lahman/
 
 # Ignore migration cache files but not the migrations themselves
 **/migrations/__pycache__/
