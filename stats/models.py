@@ -116,8 +116,10 @@ class Game(models.Model):
     date_played = models.DateField()
     home_team = models.ForeignKey('teams.Teams', on_delete=models.CASCADE, related_name='home_games')
     away_team = models.ForeignKey('teams.Teams', on_delete=models.CASCADE, related_name='away_games')
-    home_score = models.PositiveSmallIntegerField()
-    away_score = models.PositiveSmallIntegerField()
+    home_score = models.IntegerField(default=0)
+    away_score = models.IntegerField(default=0)
+    venue = models.CharField(max_length=100, blank=True, help_text="Stadium or ballpark")
+    weather = models.CharField(max_length=100, blank=True, help_text="Wind, rain, etc.")
 
     STATUS_CHOICES = [
         ('draft', 'Draft'),

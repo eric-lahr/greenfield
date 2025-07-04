@@ -92,12 +92,6 @@ class DivisionCountForm(forms.Form):
     )
 
 
-# stats/forms.py
-
-from django import forms
-from .models      import Game, Competition
-from teams.models import Teams
-
 class GameForm(forms.ModelForm):
     competition = forms.ModelChoiceField(
         queryset=Competition.objects.all(),

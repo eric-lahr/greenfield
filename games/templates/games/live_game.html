@@ -1,0 +1,11 @@
+{# games/templates/games/live_game.html #}
+{% extends "base.html" %}
+{% block content %}
+
+<h1>Live Game: {{ session.game }}</h1>
+<div id="live-area">
+  {% include "games/live_game_partial.html" %}
+</div>
+<p><a href="{% url 'games:session_list' %}">Back to sessions</a></p>
+
+{% endblock %}

@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block content %}
+  <h2>Enter {{ side|capfirst }} Lineup for {{ team }}</h2>
+
+  <form method="post">
+    {% csrf_token %}
+    {{ form.non_field_errors }}
+
+    <div class="row">
+      <!-- Batting spots 1–9 -->
+      <div class="col-md-8">
+        {% for player_field, position_field in batting_fields %}
+          <div class="mb-3 row">
+            <div class="col">{{ player_field }}</div>
+            <div class="col">{{ position_field }}</div>
+          </div>
+        {% endfor %}
+      </div>
+
+      <!-- Starter -->
+      <div class="col-md-4">
+        <div class="mb-3">
+          <label>{{ form.starting_pitcher.label }}</label>
+          {{ form.starting_pitcher }}
+        </div>
+      </div>
+    </div>
+
+    <button type="submit" class="btn btn-primary">
+      {% if side == 'away' %}Save Away Lineup &gt;&gt;{% else %}Go Live!{% endif %}
+    </button>
+  </form>
+{% endblock %}

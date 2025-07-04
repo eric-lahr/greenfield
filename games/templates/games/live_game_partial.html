@@ -1,0 +1,101 @@
+{# games/templates/games/live_game_partial.html #}
+<div class="row">
+  <div class="col-md-8">
+    <table class="table table-sm">
+      <thead>
+        <tr>
+          <th></th>
+          {% for inning in innings %}
+            <th>{{ inning }}</th>
+          {% endfor %}
+          <th>R</th><th>H</th><th>E</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th>{{ session.game.away_team }}</th>
+          {% for run in away_scores %}
+            <td>{{ run }}</td>
+          {% endfor %}
+          <td>{{ away_totals.runs }}</td>
+          <td>{{ away_totals.hits }}</td>
+          <td>{{ away_totals.errors }}</td>
+        </tr>
+        <tr>
+          <th>{{ session.game.home_team }}</th>
+          {% for run in home_scores %}
+            <td>{{ run }}</td>
+          {% endfor %}
+          <td>{{ home_totals.runs }}</td>
+          <td>{{ home_totals.hits }}</td>
+          <td>{{ home_totals.errors }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- CONTROLS & TEAM CARDS -->
+  <div class="col-md-4">
+    <!-- Game status -->
+    <div class="mb-3">
+      <strong>
+        {{ session.is_top|yesno:"Top of,Bottom of" }}
+        inning {{ session.inning }} &mdash;
+        {{ session.outs }} {{ session.outs|pluralize:"out,outs" }}
+      </strong>
+    </div>
+
+    <!-- Away Team Card -->
+    <div class="card mb-3">
+      <div class="card-header">{{ session.game.away_team }}</div>
+      <div class="card-body">
+        <h5 class="card-title">{{ away_player }}</h5>
+        <p class="card-text">
+          Rating: {{ away_rating }}
+        </p>
+      </div>
+    </div>
+
+    <!-- Home Team Card -->
+    <div class="card mb-3">
+      <div class="card-header">{{ session.game.home_team }}</div>
+      <div class="card-body">
+        <h5 class="card-title">{{ home_player }}</h5>
+        <p class="card-text">
+          Rating: {{ home_rating }}
+        </p>
+      </div>
+    </div>
+
+    <!-- Play buttons -->
+    <form
+      action="{% url 'games:live_game' session.id %}"
+      method="post"
+      hx-post="{% url 'games:live_game' session.id %}"
+      hx-target="#live-area"
+      hx-swap="innerHTML"
+    >
+      {% csrf_token %}
+      <div class="btn-group flex-wrap">
+        {% for code,label in play_choices %}
+          <button
+            type="submit"
+            name="result"
+            value="{{ code }}"
+            class="btn btn-outline-primary m-1 flex-fill"
+          >
+            {{ label }}
+          </button>
+        {% endfor %}
+      </div>
+    </form>
+
+    <!-- Substitute link -->
+    <a
+      href="{% url 'games:substitute' session.id %}"
+      class="btn btn-secondary mt-3 w-100"
+    >
+      Substitute
+    </a>
+  </div>
+</div>
