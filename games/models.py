@@ -24,13 +24,28 @@ class GameSession(models.Model):
         related_name='+',
         null=True, blank=True
     )
+    runner_on_first  = models.ForeignKey(
+        'players.Players', on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='+'
+        )
+    runner_on_second = models.ForeignKey(
+        'players.Players', on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='+'
+        )
+    runner_on_third  = models.ForeignKey(
+        'players.Players', on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='+'
+        )
     status    = models.CharField(max_length=20,
-                                 choices=(
-                                   ('not_started','Not Started'),
-                                   ('in_progress','In Progress'),
-                                   ('paused','Paused'),
-                                   ('completed','Completed'),
-                                 ), default='not_started')
+        choices=(
+        ('not_started','Not Started'),
+        ('in_progress','In Progress'),
+        ('paused','Paused'),
+        ('completed','Completed'),
+        ), default='not_started')
     started   = models.DateTimeField(auto_now_add=True)
 
     def get_box_score(self):

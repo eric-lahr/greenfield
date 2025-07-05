@@ -144,7 +144,7 @@ def live_game(request, session_id):
     lineup = get_lineup(sess, sess.is_top)
     batter = lineup[idx]
 
-    # 5) Map away/home cards
+    # 5) Map away/home cards (as you already have)
     if sess.is_top:
         away_player, home_player = batter, pitcher
         away_rating, home_rating = batter.offense, pitcher.pitching
@@ -152,26 +152,48 @@ def live_game(request, session_id):
         away_player, home_player = pitcher, batter
         away_rating, home_rating = pitcher.pitching, batter.offense
 
+    # 6) Baserunner state for the template
+    bases = [
+        SimpleNamespace(index=1, name='1st Base', runner=sess.runner_on_first),
+        SimpleNamespace(index=2, name='2nd Base', runner=sess.runner_on_second),
+        SimpleNamespace(index=3, name='3rd Base', runner=sess.runner_on_third),
+    ]
+    base_actions = [
+        ('ADV','Advance'),
+        ('ADV2','to 2nd'),
+        ('ADV3','to 3rd'),
+        ('SB','Stolen Base'),
+        ('CS','Caught Stealing'),
+        ('SCORE','Score'),
+        ('OUT','Out'),
+        ('REMOVE','Remove'),
+    ]
+
+    # 7) Build the full context
     context = {
-        'session':      sess,
-        'away_player':  away_player,
-        'home_player':  home_player,
-        'away_rating':  away_rating,
-        'home_rating':  home_rating,
-        'play_choices': PlayEvent._meta.get_field('result').choices,
-        'innings':      innings,
-        'away_scores':  away_scores,
-        'home_scores':  home_scores,
-        'away_totals':  away_totals,
-        'home_totals':  home_totals,
+        'session':         sess,
+        'away_player':     away_player,
+        'home_player':     home_player,
+        'away_rating':     away_rating,
+        'home_rating':     home_rating,
+        'play_choices':    PlayEvent._meta.get_field('result').choices,
+        'innings':         innings,
+        'away_scores':     away_scores,
+        'home_scores':     home_scores,
+        'away_totals':     away_totals,
+        'home_totals':     home_totals,
         'defense_spots':   defense_spots,
         'defense_choices': [('A','Assist'),('PO','Put Out'),('E','Error')],
+        # ← New keys for baserunners
+        'bases':           bases,
+        'base_actions':    base_actions,
     }
 
+    # 8) Finally, pick the partial vs. full template
     template = (
         'games/live_game_partial.html'
-        if request.headers.get('HX-Request') else
-        'games/live_game.html'
+        if request.headers.get('HX-Request')
+        else 'games/live_game.html'
     )
     return render(request, template, context)
 
