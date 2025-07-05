@@ -1,6 +1,8 @@
 from django.shortcuts import render, redirect, get_object_or_404
+from types import SimpleNamespace
 from .models import GameSession, PlayEvent
 from stats.models import LineupEntry
+from players.models import PlayerPositionRating
 from games.forms import GameSetupForm
 from stats.forms import LineupEntryForm
 
@@ -26,6 +28,36 @@ def live_game(request, session_id):
                 .filter(game=session.game, team=team)
                 .order_by('batting_order')
         ]
+
+    # 1) Fetch the nine defenders in their fielding order
+    fielding_entries = (
+        LineupEntry.objects
+        .filter(game=sess.game, team= sess.game.away_team if sess.is_top else sess.game.home_team)
+        .order_by('batting_order')
+    )
+
+    # 2) Build defense_spots with the proper rating lookup
+    defense_spots = []
+    for idx, entry in enumerate(fielding_entries, start=1):
+        player = entry.player
+        pos_code = entry.fielding_position  # e.g. "1B", "CF", etc.
+
+        # Try to pull the matching PlayerPositionRating
+        try:
+            ppr = PlayerPositionRating.objects.get(
+                player=player,
+                position__name=pos_code
+            )
+            rating = ppr.rating
+        except PlayerPositionRating.DoesNotExist:
+            rating = 'N/A'
+
+        defense_spots.append(SimpleNamespace(
+            index=idx,
+            position=pos_code,
+            player=player,
+            rating=rating
+        ))
 
     # ————— POST (an at‐bat) —————
     if request.method == "POST":
@@ -132,6 +164,8 @@ def live_game(request, session_id):
         'home_scores':  home_scores,
         'away_totals':  away_totals,
         'home_totals':  home_totals,
+        'defense_spots':   defense_spots,
+        'defense_choices': [('A','Assist'),('PO','Put Out'),('E','Error')],
     }
 
     template = (

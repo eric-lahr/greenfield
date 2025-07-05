@@ -1,0 +1,32 @@
+{# games/templates/games/live_game_partial_scoreboard.html #}
+<table class="table table-sm">
+  <thead>
+    <tr>
+      <th></th>
+      {% for inning in innings %}
+        <th>{{ inning }}</th>
+      {% endfor %}
+      <th>R</th><th>H</th><th>E</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>{{ session.game.away_team }}</th>
+      {% for run in away_scores %}
+        <td>{{ run }}</td>
+      {% endfor %}
+      <td>{{ away_totals.runs }}</td>
+      <td>{{ away_totals.hits }}</td>
+      <td>{{ away_totals.errors }}</td>
+    </tr>
+    <tr>
+      <th>{{ session.game.home_team }}</th>
+      {% for run in home_scores %}
+        <td>{{ run }}</td>
+      {% endfor %}
+      <td>{{ home_totals.runs }}</td>
+      <td>{{ home_totals.hits }}</td>
+      <td>{{ home_totals.errors }}</td>
+    </tr>
+  </tbody>
+</table>

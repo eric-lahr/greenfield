@@ -1,0 +1,42 @@
+{# games/templates/games/live_game_partial_defense.html #}
+<h5>Defense</h5>
+<form id="defense-form" class="mb-3">
+  <div class="table-responsive">
+    <table class="table table-sm align-middle">
+      <thead>
+        <tr>
+          <th scope="col">Pos</th>
+          <th scope="col">Player</th>
+          <th scope="col">Rating</th>
+          <th scope="col">A</th>
+          <th scope="col">PO</th>
+          <th scope="col">E</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for spot in defense_spots %}
+          <tr>
+            <td>{{ spot.position }}</td>
+            <td>{{ spot.player.last_name }}</td>
+            <td>{{ spot.rating }}</td>
+            <td class="text-center">
+              <input class="form-check-input" type="radio"
+                     name="def_{{ spot.index }}" value="A">
+            </td>
+            <td class="text-center">
+              <input class="form-check-input" type="radio"
+                     name="def_{{ spot.index }}" value="PO">
+            </td>
+            <td class="text-center">
+              <input class="form-check-input" type="radio"
+                     name="def_{{ spot.index }}" value="E">
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <button type="submit" class="btn btn-sm btn-primary mt-2">
+    Record Defense
+  </button>
+</form>

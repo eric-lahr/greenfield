@@ -1,0 +1,22 @@
+{# games/templates/games/live_game_partial_bases.html #}
+<h5>Bases</h5>
+<form id="bases-form">
+  {% for base in bases %}
+    <div class="mb-3">
+      <strong>{{ base.name }}:</strong>
+      {% if base.runner %}
+        {{ base.runner.last_name }}
+        {% for code,label in base_actions %}
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio"
+                   name="base_{{ base.index }}" value="{{ code }}">
+            <label class="form-check-label">{{ label }}</label>
+          </div>
+        {% endfor %}
+      {% else %}
+        <em>Empty</em>
+      {% endif %}
+    </div>
+  {% endfor %}
+  <button type="submit" class="btn btn-sm btn-primary">Apply</button>
+</form>

@@ -1,0 +1,67 @@
+{# games/templates/games/live_game_partial_matchup.html #}
+
+<!-- Game status -->
+<div class="mb-3">
+  <strong>
+    {{ session.is_top|yesno:"Top of,Bottom of" }}
+    inning {{ session.inning }} &mdash;
+    {{ session.outs }} {{ session.outs|pluralize:"out,outs" }}
+  </strong>
+</div>
+
+<!-- Away/Home cards -->
+<div class="card mb-3">
+  <div class="card-header">{{ session.game.away_team }}</div>
+  <div class="card-body">
+    <h5 class="card-title">{{ away_player }}</h5>
+    <p class="card-text">Rating: {{ away_rating }}</p>
+  </div>
+</div>
+<div class="card mb-3">
+  <div class="card-header">{{ session.game.home_team }}</div>
+  <div class="card-body">
+    <h5 class="card-title">{{ home_player }}</h5>
+    <p class="card-text">Rating: {{ home_rating }}</p>
+  </div>
+</div>
+
+<!-- Play buttons -->
+<form
+  action="{% url 'games:live_game' session.id %}"
+  method="post"
+  hx-post="{% url 'games:live_game' session.id %}"
+  hx-target="#live-area"
+  hx-swap="innerHTML"
+>
+  {% csrf_token %}
+  <div class="btn-group flex-wrap">
+    {% for code,label in play_choices %}
+      <button
+        type="submit"
+        name="result"
+        value="{{ code }}"
+        class="btn btn-outline-primary m-1 flex-fill"
+      >
+        {{ label }}
+      </button>
+    {% endfor %}
+    <!-- Add your FC and E buttons as extra options here -->
+    <button type="submit" name="result" value="FC" class="btn btn-outline-secondary m-1 flex-fill">FC</button>
+    <button type="submit" name="result" value="E"  class="btn btn-outline-danger   m-1 flex-fill">Error</button>
+  </div>
+</form>
+
+<!-- Substitute link -->
+<a
+  href="{% url 'games:substitute' session.id %}"
+  class="btn btn-secondary mt-3 w-100"
+>
+  Substitute
+</a>
+<!-- Restart / New Game button for testing -->
+<a
+  href="{% url 'games:setup_game' %}"
+  class="btn btn-outline-danger mt-2 w-100"
+>
+  Start New Game
+</a>
