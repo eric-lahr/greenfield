@@ -1,7 +1,7 @@
 from django.db import models
 from django.conf import settings
 from collections import defaultdict
-#from teams.models import Teams
+from teams.models import Teams
 from players.models import Players
 
 
@@ -75,6 +75,10 @@ class GameSession(models.Model):
 
         return box
 
+    def clear_base(self, index):
+        slot = ('first','second','third')[index-1]
+        setattr(self, f'runner_on_{slot}', None)
+
     class Meta:
         unique_together = ('game','status')
 
@@ -96,9 +100,60 @@ class PlayEvent(models.Model):
                                    ('3B','Triple'),
                                    ('HR','Home Run'),
                                    ('BB','Walk'),
+                                   ('HBP','HBP'),
                                    ('K','Strikeout'),
                                    ('OUT','Other Out'),
+                                   ('DP', 'Double Play'),
+                                   ('TP', 'Triple Play'),
                                  ))
     inning    = models.PositiveSmallIntegerField()
     is_top    = models.BooleanField()
     timestamp = models.DateTimeField(auto_now_add=True)
+
+
+class SessionInningScore(models.Model):
+    session = models.ForeignKey(
+        'games.GameSession',      # points at your live‐play session
+        on_delete=models.CASCADE,
+        related_name='inning_scores'
+    )
+    team    = models.ForeignKey(
+        Teams,
+        on_delete=models.CASCADE
+    )
+    inning  = models.PositiveSmallIntegerField()
+    is_top  = models.BooleanField()
+    runs    = models.PositiveSmallIntegerField(default=0)
+    hits    = models.PositiveSmallIntegerField(default=0)
+    errors  = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        unique_together = ('session','team','inning','is_top')
+        ordering = ['inning','is_top']
+
+    def __str__(self):
+        half = 'Top' if self.is_top else 'Bot'
+        return f"{self.team} {half} {self.inning}: R{self.runs}-H{self.hits}-E{self.errors}"
+
+
+class PlayerSessionStatLine(models.Model):
+    session = models.ForeignKey(
+        GameSession, on_delete=models.CASCADE, related_name='player_stats'
+    )
+    player  = models.ForeignKey(
+        Players,     on_delete=models.CASCADE
+    )
+    # Basic batting stats
+    ab  = models.PositiveSmallIntegerField(default=0)
+    h   = models.PositiveSmallIntegerField(default=0)
+    r   = models.PositiveSmallIntegerField(default=0)
+    rbi = models.PositiveSmallIntegerField(default=0)
+    bb  = models.PositiveSmallIntegerField(default=0)
+    hbp = models.PositiveSmallIntegerField(default=0)
+    so  = models.PositiveSmallIntegerField(default=0)
+    sb  = models.PositiveSmallIntegerField(default=0)
+    cs  = models.PositiveSmallIntegerField(default=0)
+    dp  = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        unique_together = ('session','player')

@@ -36,19 +36,22 @@
   {% csrf_token %}
   <div class="btn-group flex-wrap">
     {% for code,label in play_choices %}
-      <button
-        type="submit"
-        name="result"
-        value="{{ code }}"
-        class="btn btn-outline-primary m-1 flex-fill"
-      >
+      <button type="submit" name="result" value="{{ code }}"
+              class="btn btn-outline-primary m-1 flex-fill">
         {{ label }}
       </button>
     {% endfor %}
-    <!-- Add your FC and E buttons as extra options here -->
-    <button type="submit" name="result" value="FC" class="btn btn-outline-secondary m-1 flex-fill">FC</button>
-    <button type="submit" name="result" value="E"  class="btn btn-outline-danger   m-1 flex-fill">Error</button>
-  </div>
+    <!-- new HBP button -->
+    <button type="submit" name="result" value="HBP"
+            class="btn btn-outline-success m-1 flex-fill">
+      HBP
+    </button>
+    <!-- existing FC and Error -->
+    <button type="submit" name="result" value="FC"
+            class="btn btn-outline-secondary m-1 flex-fill">FC</button>
+    <button type="submit" name="result" value="E"
+            class="btn btn-outline-danger   m-1 flex-fill">Error</button>
+  </div>  
 </form>
 
 <!-- Substitute link -->

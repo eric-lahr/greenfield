@@ -75,7 +75,16 @@
       <!-- Baserunners (right half of 2/3) -->
       <div class="col-md-6">
         <h6>Bases</h6>
-        <form id="bases-form" class="mb-3">
+        <form
+          id="bases-form"
+          method="post"
+          action="{% url 'games:live_game' session.id %}"
+          hx-post="{% url 'games:live_game' session.id %}"
+          hx-target="#live-area"
+          hx-swap="innerHTML"
+          class="mb-3"
+        >
+          {% csrf_token %}
           {% for base in bases %}
             <div class="mb-2">
               <strong>{{ base.name }}:</strong>
@@ -138,6 +147,7 @@
       hx-post="{% url 'games:live_game' session.id %}"
       hx-target="#live-area"
       hx-swap="innerHTML"
+      hx-include="#bases-form"
     >
       {% csrf_token %}
       <div class="btn-group flex-wrap">
