@@ -95,15 +95,11 @@ class PlayEvent(models.Model):
                                   related_name='+')
     result    = models.CharField(max_length=10,
                                  choices=(
-                                   ('1B','Single'),
-                                   ('2B','Double'),
-                                   ('3B','Triple'),
-                                   ('HR','Home Run'),
-                                   ('BB','Walk'),
-                                   ('HBP','HBP'),
-                                   ('K','Strikeout'),
-                                   ('OUT','Other Out'),
-                                   ('DP', 'Double Play'),
+                                   ('1B','Single'),('2B','Double'),('3B','Triple'),('HR','Home Run'),
+                                   ('BB','Walk'),('HBP','HBP'),('K','Strikeout'),('OUT','Other Out'),
+                                   ('DP', 'Double Play'),('PB', 'Passed Ball'),('WP', 'Wild Pitch'),
+                                   ('SF', 'Sac Fly'),('SH', 'Sacrifice Bunt'),('BK', 'Balk'),
+                                   ('IBB', 'Int Walk'),('KPB', 'K + PB'),('KWP', 'K + WP'),
                                    ('TP', 'Triple Play'),
                                  ))
     inning    = models.PositiveSmallIntegerField()

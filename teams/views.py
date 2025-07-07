@@ -1,7 +1,8 @@
 import csv
-from django.shortcuts import render, get_object_or_404
+from django.shortcuts import render, get_object_or_404, redirect
 from io import BytesIO, StringIO
-from .models import Teams
+from .models import Teams, Lineup
+from .forms import LineupForm, LineupEntryFormSet
 from players.models import Players, PlayerPositionRating
 from django.db.models import Case, When, Value, IntegerField, Prefetch
 from django.http import HttpResponse
@@ -337,3 +338,47 @@ def create_csv_pitchers(request, team_serial):
     response = HttpResponse(output.getvalue(), content_type='text/csv')
     response['Content-Disposition'] = f'attachment; filename="{team.team_name}_{team.first_name}_pitchers.csv"'
     return response
+
+def manage_lineup(request, team_id, lineup_id=None):
+    team = get_object_or_404(Teams, pk=team_id)
+
+    # Load or initialize the Lineup instance
+    if lineup_id:
+        lineup = get_object_or_404(Lineup, pk=lineup_id, team=team)
+    else:
+        lineup = Lineup(team=team)
+
+    # Dynamically set how many empty forms we show (8 or 9)
+    EntryFormSet = LineupEntryFormSet
+    EntryFormSet.extra = 9 if lineup.allow_dh else 8
+
+    if request.method == 'POST':
+        form    = LineupForm(request.POST, instance=lineup)
+        formset = EntryFormSet(request.POST, instance=lineup)
+
+        # ─── Limit each entry_form's player choices ───
+        for entry_form in formset.forms:
+            entry_form.fields['player'].queryset = Players.objects.filter(
+                team_serial=team
+            )
+
+        if form.is_valid() and formset.is_valid():
+            form.instance.team = team
+            form.save()
+            formset.save()
+            return redirect('teams:manage_lineup', team_id=team.id)
+    else:
+        form    = LineupForm(instance=lineup)
+        formset = EntryFormSet(instance=lineup)
+
+        # ─── And again for the GET case ───
+        for entry_form in formset.forms:
+            entry_form.fields['player'].queryset = Players.objects.filter(
+                team_serial=team
+            )
+
+    return render(request, 'teams/manage_lineup.html', {
+        'team':    team,
+        'form':    form,
+        'formset': formset,
+    })

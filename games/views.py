@@ -1,9 +1,13 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.db import transaction
 from types import SimpleNamespace
-from .models import GameSession, PlayEvent, SessionInningScore
+from .models import (
+    GameSession, PlayEvent, SessionInningScore,
+    PlayerSessionStatLine,
+    )
 from stats.models import LineupEntry
-from players.models import PlayerPositionRating
+from players.models import PlayerPositionRating, Players
+from teams.models import Lineup, TeamLineupEntry
 from .forms import GameSetupForm
 from stats.forms import LineupEntryForm
 
@@ -29,47 +33,6 @@ def live_game(request, session_id):
                 .filter(game=session.game, team=team)
                 .order_by('batting_order')
         ]
-
-    # Build defense_spots for the template
-    # fielding side is the opposite of the batting side
-    defending_team = sess.game.home_team if sess.is_top else sess.game.away_team
-
-    # pull all lineup entries for the fielding team
-    fielding_entries = list(
-        LineupEntry.objects
-            .filter(game=sess.game, team=defending_team)
-            .select_related('player')
-    )
-
-    # define the exact defensive position order you want
-    pos_order = ['P', 'C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF']
-
-    # sort them by that order (unknown positions go to the end)
-    fielding_entries.sort(
-        key=lambda e: pos_order.index(e.fielding_position)
-                      if e.fielding_position in pos_order
-                      else len(pos_order)
-    )
-
-    # build the namespace list for your template
-    defense_spots = []
-    for idx, entry in enumerate(fielding_entries, start=1):
-        player = entry.player
-        pos    = entry.fielding_position
-        try:
-            rating = PlayerPositionRating.objects.get(
-                player=player,
-                position__name=pos
-            ).rating
-        except PlayerPositionRating.DoesNotExist:
-            rating = 'N/A'
-
-        defense_spots.append(SimpleNamespace(
-            index=idx,
-            position=pos,
-            player=player,
-            rating=rating
-        ))
 
     # ——— POST branch #1: Baserunner moves ———
     if request.method == "POST" \
@@ -147,20 +110,37 @@ def live_game(request, session_id):
             inning  = sess.inning,
             is_top  = sess.is_top,
         )
+        pre_runs = sis.runs
 
-        # 4) Record hits and automatic HR run
+        # 4) Record hits, errors, sac flies, and HR runs
         if code in ('1B','2B','3B'):
             sis.hits += 1
+
         elif code == 'E':
             sis.errors += 1
+
+        elif code == 'SF':
+            # sacrifice fly: score runner on third if present, +RBI
+            if orig['third']:
+                sis.runs += 1
+
+        elif code == 'SH':
+            # sacrifice bunt: no automatic run, scorer may advance via radio
+            pass
+
         elif code == 'HR':
+            # home run: hit + everyone on + batter
+            sis.hits += 1
             runs_scored = sum(1 for r in orig.values() if r) + 1
             sis.runs += runs_scored
-            sis.hits += 1
+
         sis.save()
 
-        # 5) Forced‐advance logic BEFORE placing the batter
-        if code in ('1B','BB','HBP','E'):           # ← remove 'FC' here
+
+        # 5) Forced‐advance & live‐ball specials BEFORE placing the batter
+
+        # SINGLE‐type forces (1B, BB, HBP, E but NOT FC)
+        if code in ('1B','BB','HBP','E'):
             if orig['first']:
                 if orig['second'] and orig['third']:
                     # bases loaded → 3rd scores, 2→3, 1→2
@@ -168,29 +148,50 @@ def live_game(request, session_id):
                     sess.runner_on_third  = orig['second']
                     sess.runner_on_second = orig['first']
                 else:
-                    # only 1st occupied → 1→2
+                    # only 1st → 2nd
                     sess.runner_on_second = orig['first']
 
+        # DOUBLE forces 1st → 3rd
         elif code == '2B':
-            # double: force 1→3
             if orig['first']:
                 sess.runner_on_third = orig['first']
 
+        # TRIPLE scores everyone
         elif code == '3B':
-            # triple: everyone scores
             for r in orig.values():
                 if r:
                     sis.runs += 1
 
-        # HR scored in step 4 already
+        # Passed Ball / Wild Pitch / Balk & KPB/KWP: all runners advance one
+        elif code in ('PB','WP','BK','KPB','KWP'):
+            for b_name, runner in orig.items():
+                if not runner:
+                    continue
+                # clear old spot
+                setattr(sess, f'runner_on_{b_name}', None)
+                # advance or score
+                if b_name == 'third':
+                    sis.runs += 1
+                else:
+                    dest = ['first','second','third'][['first','second','third'].index(b_name)+1]
+                    setattr(sess, f'runner_on_{dest}', runner)
+
         sis.save()
 
 
-        # 6) Place the batter on base (and FC→out)
-        if code in ('1B','BB','HBP','E'):
+        # 6) Place the batter on base (and record FC / KPB / KWP outs)
+        if code == 'SH':
+            # sacrifice bunt: batter out, no base, no AB
+            sess.outs += 1
+
+        elif code in ('SF',):
+            # sac fly: batter out, no base, no AB
+            sess.outs += 1
+
+        elif code in ('1B','BB','HBP','E','IBB'):
             sess.runner_on_first = batter
 
-        elif code == 'FC':                         # now handled separately
+        elif code == 'FC':
             sess.runner_on_first = batter
             sess.outs += 1
 
@@ -220,12 +221,16 @@ def live_game(request, session_id):
         )
 
         #  ABs: any official PA except BB, HBP
-        if code not in ('BB','HBP'):
+        if code not in ('BB','HBP','IBB','SF','SH'):
             psl.ab += 1
 
         # Hits
         if code in ('1B','2B','3B','HR'):
             psl.h += 1
+
+        if code == '2B': psl.doubles += 1
+        if code == '3B': psl.triples += 1
+        if code == 'HR':psl.hr += 1
 
         # Walks & HBP
         if code == 'BB':
@@ -306,41 +311,58 @@ def live_game(request, session_id):
                 sess.home_batter_idx = next_idx
 
         sess.save()
+        runs_driven = sis.runs - pre_runs
+        auto_rbi_codes = {'1B','2B','3B','HR','SF'}
+        needs_override = runs_driven > 0 and code not in auto_rbi_codes
 
         # 11) Render updated partial
         context = _build_live_context(sess, get_lineup, defense_spots)
+        context.update({
+            'needs_rbi_override': needs_override,
+            'runs_driven': runs_driven,
+        })
         return render(request, 'games/live_game_partial.html', context)
 
-    # ——— 3) GET (or any other method) → full page load ———
-    context = _build_live_context(sess, get_lineup, defense_spots)
+    # ——— POST branch #3: manual RBI override ———
+    if request.method == "POST" and 'award_rbi' in request.POST:
+        award = int(request.POST['award_rbi'])
+        # find last plate appearance
+        last_event = sess.events.order_by('-timestamp').first()
+        if last_event:
+            psl, _ = PlayerSessionStatLine.objects.get_or_create(
+                session=sess,
+                player=last_event.batter
+            )
+            psl.rbi += award
+            psl.save()
+
+        # re-render the partial with updated stats
+        context = _build_live_context(sess, get_lineup, defense_spots)
+        return render(request, 'games/live_game_partial.html', context)
+
+    # ——— 4) GET (or any other method) → full page load ———
+    context = _build_live_context(sess, get_lineup)
     return render(request, 'games/live_game.html', context)
 
-def _build_live_context(sess, get_lineup, defense_spots):
+def _build_live_context(sess, get_lineup):
     """Assemble all variables needed by both full and partial templates."""
-    # 1) Inning-by-inning box score from DB
-    innings = list(range(1, sess.inning + 1))
+
+    # 1) Inning-by-inning box score
+    innings   = list(range(1, sess.inning + 1))
     away_team = sess.game.away_team
     home_team = sess.game.home_team
-    player_stats = PlayerSessionStatLine.objects.filter(session=sess)
 
-    # fetch all half-innings for this session
     sis_qs = SessionInningScore.objects.filter(session=sess)
-
-    # build a lookup {(team_id, inning, is_top): SessionInningScore}
     sis_map = {
         (sis.team_id, sis.inning, sis.is_top): sis
         for sis in sis_qs
     }
-
-    # helper to pull a field or default 0
     def get_half(team, inn, top, field):
-        key = (team.id, inn, top)
-        return getattr(sis_map.get(key), field, 0)
+        return getattr(sis_map.get((team.id, inn, top)), field, 0)
 
-    away_scores = [ get_half(away_team, i, True,  'runs')  for i in innings ]
-    home_scores = [ get_half(home_team, i, False, 'runs')  for i in innings ]
+    away_scores = [get_half(away_team, i, True,  'runs')  for i in innings]
+    home_scores = [get_half(home_team, i, False, 'runs')  for i in innings]
 
-    # totals across all half-innings
     def total(team, field):
         return sum(getattr(sis, field) for sis in sis_qs if sis.team_id == team.id)
 
@@ -360,6 +382,7 @@ def _build_live_context(sess, get_lineup, defense_spots):
         idx, pitcher = sess.away_batter_idx, sess.home_pitcher
     else:
         idx, pitcher = sess.home_batter_idx, sess.away_pitcher
+
     lineup = get_lineup(sess, sess.is_top)
     batter = lineup[idx]
 
@@ -377,18 +400,51 @@ def _build_live_context(sess, get_lineup, defense_spots):
         SimpleNamespace(index=3, name='3rd Base', runner=sess.runner_on_third),
     ]
     base_actions = [
-        ('ADV','Advance'),
-        ('ADV2','to 2nd'),
-        ('ADV3','to 3rd'),
-        ('SB','Stolen Base'),
-        ('CS','Caught Stealing'),
-        ('SCORE','Score'),
-        ('OUT','Out'),
-        ('REMOVE','Remove'),
+        ('ADV','Advance'), ('ADV2','to 2nd'), ('ADV3','to 3rd'),
+        ('SB','Stolen Base'), ('CS','Caught Stealing'),
+        ('SCORE','Score'), ('OUT','Out'), ('REMOVE','Remove'),
     ]
 
-    # 4) Defense actions
+    # 4) Defensive alignment (recomputed every half-inning)
+    defending_team = sess.game.home_team if sess.is_top else sess.game.away_team
+    entries = LineupEntry.objects.filter(
+        game=sess.game,
+        team=defending_team
+    ).select_related('player')
+
+    pos_order = ['P','C','1B','2B','3B','SS','LF','CF','RF']
+    sorted_entries = sorted(
+        entries,
+        key=lambda e: pos_order.index(e.fielding_position)
+                      if e.fielding_position in pos_order
+                      else len(pos_order)
+    )
+
+    defense_spots = []
+    for i, entry in enumerate(sorted_entries, start=1):
+        player = entry.player
+        pos    = entry.fielding_position
+        try:
+            rating = PlayerPositionRating.objects.get(
+                player=player,
+                position__name=pos
+            ).rating
+        except PlayerPositionRating.DoesNotExist:
+            rating = 'N/A'
+
+        defense_spots.append(SimpleNamespace(
+            index=i,
+            position=pos,
+            player=player,
+            rating=rating
+        ))
+
+    # 5) Choice lists
+    play_choices    = PlayEvent._meta.get_field('result').choices
     defense_choices = [('A','Assist'),('PO','Put Out'),('E','Error')]
+
+    # 6) Player stats so far
+    player_stats = PlayerSessionStatLine.objects.filter(session=sess)
 
     return {
         'session':         sess,
@@ -397,34 +453,52 @@ def _build_live_context(sess, get_lineup, defense_spots):
         'home_scores':     home_scores,
         'away_totals':     away_totals,
         'home_totals':     home_totals,
-
         'away_player':     away_player,
         'home_player':     home_player,
         'away_rating':     away_rating,
         'home_rating':     home_rating,
-        'play_choices':    PlayEvent._meta.get_field('result').choices,
-
-        'defense_spots':   defense_spots,
-        'defense_choices': defense_choices,
-
+        'play_choices':    play_choices,
         'bases':           bases,
         'base_actions':    base_actions,
+        'defense_spots':   defense_spots,
+        'defense_choices': defense_choices,
+        'player_stats':    player_stats,
     }
 
 def lineup_entry(request, session_id, side):
     sess = get_object_or_404(GameSession, id=session_id)
     game = sess.game
-    team = game.away_team if side == 'away' else game.home_team
+    team = game.away_team if side=='away' else game.home_team
 
-    form = LineupEntryForm(request.POST or None, team=team)
-    if request.method == 'POST' and form.is_valid():
-        # 0) Determine which team we're saving for
-        team = game.away_team if side == 'away' else game.home_team
+    # 1) Fetch all saved lineups
+    all_lineups   = team.lineups.all()
 
-        # 1) Clear out any existing entries
+    # 2) Determine which lineup to use
+    chosen_id = request.GET.get('lineup_id')
+    default_lineup = None
+    if chosen_id:
+        default_lineup = all_lineups.filter(id=chosen_id).first()
+    if default_lineup is None and all_lineups.exists():
+        default_lineup = all_lineups.first()
+
+    # 3) Build initial_data from that lineup
+    initial_data = {}
+    if default_lineup:
+        for entry in default_lineup.entries.all():
+            i = entry.batting_order
+            initial_data[f'player_{i}']   = entry.player.pk
+            initial_data[f'position_{i}'] = entry.field_position
+
+    # 4) Instantiate your form (POST or GET) with that initial_data
+    form = LineupEntryForm(request.POST or None,
+                           team=team,
+                           initial=initial_data)
+
+    if request.method=='POST' and form.is_valid():
+        # Clear out old entries
         LineupEntry.objects.filter(game=game, team=team).delete()
 
-        # 2) Save the 9 batting slots
+        # Save new batting slots
         for i in range(1, 10):
             player   = form.cleaned_data[f'player_{i}']
             position = form.cleaned_data[f'position_{i}']
@@ -436,35 +510,31 @@ def lineup_entry(request, session_id, side):
                 batting_order=i,
             )
 
-        # 3) Record the starting pitcher
-        if side == 'away':
+        # Record starting pitcher and redirect on success...
+        if side=='away':
             sess.away_pitcher = form.cleaned_data['starting_pitcher']
             sess.save()
-            # Move on to the home lineup step
             return redirect('games:lineup_home', session_id=sess.id)
         else:
-            sess.home_pitcher = form.cleaned_data['starting_pitcher']
-
-            # 4) **Initialize both batter pointers** now that both lineups exist
-            sess.away_batter_idx = 0
-            sess.home_batter_idx = 0
-
+            sess.home_pitcher    = form.cleaned_data['starting_pitcher']
+            sess.away_batter_idx = sess.home_batter_idx = 0
             sess.save()
-            # All set—time to go live
             return redirect('games:live_game', session_id=sess.id)
 
-    # Build the form fields for display
+    # Build the batting_fields for rendering
     batting_fields = [
         (form[f'player_{i}'], form[f'position_{i}'])
         for i in range(1, 10)
     ]
 
     return render(request, 'games/lineup_entry.html', {
-        'form':           form,
-        'session':        sess,
-        'team':           team,
-        'side':           side,
-        'batting_fields': batting_fields,
+        'session':         sess,
+        'team':            team,
+        'side':            side,
+        'form':            form,
+        'batting_fields':  batting_fields,
+        'all_lineups':     all_lineups,
+        'default_lineup':  default_lineup,
     })
 
 def substitute(request, session_id):

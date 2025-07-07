@@ -1,5 +1,6 @@
 from django.db import models
 from stadiums.models import Stadiums
+from players.models import Players
 
 class Teams(models.Model):
 
@@ -57,3 +58,43 @@ class Logos(models.Model):
         upload_to='logos/', height_field=None, 
         width_field=None, max_length=100, null=True, blank=True
         )
+
+# list all the defensive slots + DH
+POSITION_CHOICES = [
+    ('P','P'), ('C','C'),
+    ('1B','1B'), ('2B','2B'), ('3B','3B'), ('SS','SS'),
+    ('LF','LF'), ('CF','CF'), ('RF','RF'),
+    ('DH','DH'),
+]
+
+class Lineup(models.Model):
+    team        = models.ForeignKey('teams.Teams', on_delete=models.CASCADE, related_name='lineups')
+    name        = models.CharField(max_length=100)
+    description = models.TextField(blank=True)
+    allow_dh    = models.BooleanField(
+        default=False,
+        help_text="Check to use a 9-player (DH) lineup; leave unchecked for an 8-player non-DH lineup."
+    )
+
+    class Meta:
+        unique_together = ('team','name')
+        ordering = ['team','name']
+
+    def __str__(self):
+        return f"{self.team} – {self.name}"
+
+class TeamLineupEntry(models.Model):
+    lineup         = models.ForeignKey(Lineup, on_delete=models.CASCADE, related_name='entries')
+    player         = models.ForeignKey(Players, on_delete=models.CASCADE)
+    batting_order  = models.PositiveSmallIntegerField()
+    field_position = models.CharField(max_length=2, choices=POSITION_CHOICES)
+
+    class Meta:
+        unique_together = (
+            ('lineup','batting_order'),
+            ('lineup','field_position'),
+        )
+        ordering = ['batting_order']
+
+    def __str__(self):
+        return f"{self.batting_order}: {self.player} ({self.field_position})"

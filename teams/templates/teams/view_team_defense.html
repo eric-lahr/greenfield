@@ -23,11 +23,12 @@
     <!-- Button Group -->
     <div class="col-md-8 d-flex flex-wrap justify-content-end mt-3 mt-md-0">
       <div class="btn-group btn-group-sm flex-wrap" role="group">
-        <a href="{% url 'new_create_pdf' selected_team_id %}" class="btn btn-primary">Team PDF</a>
-        <a href="{% url 'create_pdf_batters' team_serial=selected_team_id %}" class="btn btn-secondary">Batters PDF</a>
-        <a href="{% url 'create_pdf_pitchers' team_serial=selected_team_id %}" class="btn btn-secondary">Pitchers PDF</a>
-        <a href="{% url 'create_csv_batters' team_serial=selected_team_id %}" class="btn btn-outline-success">Batters CSV</a>
-        <a href="{% url 'create_csv_pitchers' team_serial=selected_team_id %}" class="btn btn-outline-success">Pitchers CSV</a>
+        <a href="{% url 'teams:new_create_pdf' selected_team_id %}" class="btn btn-primary">Team PDF</a>
+        <a href="{% url 'teams:create_pdf_batters' team_serial=selected_team_id %}" class="btn btn-secondary">Batters PDF</a>
+        <a href="{% url 'teams:create_pdf_pitchers' team_serial=selected_team_id %}" class="btn btn-secondary">Pitchers PDF</a>
+        <a href="{% url 'teams:create_csv_batters' team_serial=selected_team_id %}" class="btn btn-outline-success">Batters CSV</a>
+        <a href="{% url 'teams:create_csv_pitchers' team_serial=selected_team_id %}" class="btn btn-outline-success">Pitchers CSV</a>
+        <a href="{% url 'teams:manage_lineup' team_id=selected_team_id %}" class="btn btn-warning">Lineups</a>
       </div>
       <a href="{% url 'menu:home' %}" class="btn btn-outline-dark btn-sm ml-2 mt-2 mt-md-0">Return to Main Menu</a>
     </div>

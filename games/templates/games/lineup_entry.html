@@ -1,33 +1,50 @@
+{# games/templates/games/lineup_entry.html #}
+
 {% extends "base.html" %}
 {% block content %}
-  <h2>Enter {{ side|capfirst }} Lineup for {{ team }}</h2>
+  <h2>Set up {{ team.first_name }} {{ team.team_name }} batting order</h2>
 
+  {# —————— GET form for choosing a saved lineup —————— #}
+  <form method="get" class="mb-3">
+    <label>Use saved lineup:</label>
+    <select name="lineup_id" onchange="this.form.submit()">
+      <option value="">— choose one —</option>
+      {% for lu in all_lineups %}
+        <option
+          value="{{ lu.id }}"
+          {% if default_lineup and lu.id == default_lineup.id %}selected{% endif %}
+        >
+          {{ lu.name }}
+        </option>
+      {% endfor %}
+    </select>
+  </form>
+
+  {# —————— POST form for saving the lineup into the game —————— #}
   <form method="post">
     {% csrf_token %}
     {{ form.non_field_errors }}
 
     <div class="row">
-      <!-- Batting spots 1–9 -->
-      <div class="col-md-8">
-        {% for player_field, position_field in batting_fields %}
-          <div class="mb-3 row">
-            <div class="col">{{ player_field }}</div>
-            <div class="col">{{ position_field }}</div>
+      {% for player_field, position_field in batting_fields %}
+        <div class="col-md-6 mb-2">
+          <div class="card p-3">
+            {{ player_field.label_tag }}<br>
+            {{ player_field }}<br>
+            {{ position_field.label_tag }}<br>
+            {{ position_field }}
           </div>
-        {% endfor %}
-      </div>
-
-      <!-- Starter -->
-      <div class="col-md-4">
-        <div class="mb-3">
-          <label>{{ form.starting_pitcher.label }}</label>
-          {{ form.starting_pitcher }}
         </div>
-      </div>
+      {% endfor %}
     </div>
 
-    <button type="submit" class="btn btn-primary">
-      {% if side == 'away' %}Save Away Lineup &gt;&gt;{% else %}Go Live!{% endif %}
+    <div class="mt-3">
+      {{ form.starting_pitcher.label_tag }}
+      {{ form.starting_pitcher }}
+    </div>
+
+    <button type="submit" class="btn btn-primary mt-3">
+      Save &amp; Continue
     </button>
   </form>
 {% endblock %}

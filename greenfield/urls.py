@@ -26,7 +26,7 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path('menu/', include('menu.urls')),
     path('players/', include('players.urls', namespace='players')),
-    path('teams/', include('teams.urls')),
+    path('teams/', include('teams.urls', namespace='teams')),
     # path('stadiums/', include('stadiums.urls')),
     path('games/', include('games.urls')),
     path('stats/', include('stats.urls')),

@@ -110,6 +110,22 @@
             Apply Bases
           </button>
         </form>
+        {% if needs_rbi_override %}
+          <form
+            action="{% url 'games:live_game' session.id %}"
+            method="post"
+            hx-post="{% url 'games:live_game' session.id %}"
+            hx-target="#live-area"
+            hx-swap="innerHTML"
+            class="mt-2"
+          >
+            {% csrf_token %}
+            <input type="hidden" name="award_rbi" value="{{ runs_driven }}">
+            <button type="submit" class="btn btn-sm btn-warning">
+              Award {{ runs_driven }} RBI
+            </button>
+          </form>
+        {% endif %}
       </div>
     </div>
   </div>
