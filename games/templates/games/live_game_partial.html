@@ -1,3 +1,4 @@
+{# games/templates/games/live_game_partial.html #}
 {# Everything inside #live-area: scoreboard, defense, bases, matchup #}
 
 <div class="row">
@@ -37,18 +38,27 @@
       <!-- Defense (left half of 2/3) -->
       <div class="col-md-6">
         <h6>Defense</h6>
-        <div class="table-responsive">
-          <table class="table table-sm align-middle">
-            <thead>
-              <tr>
-                <th>Pos</th><th>Player</th><th>Rating</th>
-                <th class="text-center">A</th>
-                <th class="text-center">PO</th>
-                <th class="text-center">E</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for spot in defense_spots %}
+        <form
+          id="defense-form"
+          method="post"
+          hx-post="{% url 'games:live_game' session.id %}"
+          hx-trigger="submit"
+          hx-target="#live-area"
+          hx-swap="innerHTML"
+        >
+          {% csrf_token %}
+          <div class="table-responsive">
+            <table class="table table-sm align-middle">
+              <thead>
+                <tr>
+                  <th>Pos</th><th>Player</th><th>Rating</th>
+                  <th class="text-center">A</th>
+                  <th class="text-center">PO</th>
+                  <th class="text-center">E</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for spot in defense_spots %}
                 <tr>
                   <td>{{ spot.position }}</td>
                   <td>{{ spot.player.last_name }}</td>
@@ -66,10 +76,14 @@
                            name="def_{{ spot.index }}" value="E">
                   </td>
                 </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          <button type="submit" class="btn btn-sm btn-primary">
+            Save Defense
+          </button>
+        </form>
       </div>
 
       <!-- Baserunners (right half of 2/3) -->
@@ -78,11 +92,11 @@
         <form
           id="bases-form"
           method="post"
-          action="{% url 'games:live_game' session.id %}"
           hx-post="{% url 'games:live_game' session.id %}"
+          hx-trigger="submit"
           hx-target="#live-area"
           hx-swap="innerHTML"
-          class="mb-3"
+          hx-include="#defense-form"
         >
           {% csrf_token %}
           {% for base in bases %}
@@ -107,25 +121,9 @@
             </div>
           {% endfor %}
           <button type="submit" class="btn btn-sm btn-primary">
-            Apply Bases
+            Apply Bases & Defense
           </button>
         </form>
-        {% if needs_rbi_override %}
-          <form
-            action="{% url 'games:live_game' session.id %}"
-            method="post"
-            hx-post="{% url 'games:live_game' session.id %}"
-            hx-target="#live-area"
-            hx-swap="innerHTML"
-            class="mt-2"
-          >
-            {% csrf_token %}
-            <input type="hidden" name="award_rbi" value="{{ runs_driven }}">
-            <button type="submit" class="btn btn-sm btn-warning">
-              Award {{ runs_driven }} RBI
-            </button>
-          </form>
-        {% endif %}
       </div>
     </div>
   </div>
@@ -156,29 +154,42 @@
       </div>
     </div>
 
-    {# Play buttons form #}
+    {# Play‐result form #}
     <form
-      action="{% url 'games:live_game' session.id %}"
+      id="play-form"
       method="post"
       hx-post="{% url 'games:live_game' session.id %}"
+      hx-trigger="submit"
       hx-target="#live-area"
       hx-swap="innerHTML"
-      hx-include="#bases-form"
+      hx-include="#defense-form, #bases-form"
     >
       {% csrf_token %}
       <div class="btn-group flex-wrap">
         {% for code,label in play_choices %}
-          <button type="submit" name="result" value="{{ code }}"
-                  class="btn btn-outline-primary m-1 flex-fill">
+          <button
+            type="submit"
+            name="result"
+            value="{{ code }}"
+            class="btn btn-outline-primary m-1 flex-fill"
+          >
             {{ label }}
           </button>
         {% endfor %}
-        <button type="submit" name="result" value="FC"
-                class="btn btn-outline-secondary m-1 flex-fill">
+        <button
+          type="submit"
+          name="result"
+          value="FC"
+          class="btn btn-outline-secondary m-1 flex-fill"
+        >
           FC
         </button>
-        <button type="submit" name="result" value="E"
-                class="btn btn-outline-danger m-1 flex-fill">
+        <button
+          type="submit"
+          name="result"
+          value="E"
+          class="btn btn-outline-danger m-1 flex-fill"
+        >
           Error
         </button>
       </div>

@@ -37,7 +37,8 @@ def live_game(request, session_id):
     # ——— POST branch #1: Baserunner moves ———
     if request.method == "POST" \
         and any(k.startswith('base_') for k in request.POST) \
-        and 'result' not in request.POST:
+        and 'result' not in request.POST \
+        and 'award_rbi' not in request.POST:
         # Process each base_<n> action
         for i in (1, 2, 3):
             action = request.POST.get(f'base_{i}')
@@ -79,11 +80,12 @@ def live_game(request, session_id):
                 setattr(sess, runner_attr, None)
 
         sess.save()
-        context = _build_live_context(sess, get_lineup, defense_spots)
+        context = _build_live_context(sess, get_lineup)
         return render(request, 'games/live_game_partial.html', context)
 
     # ——— POST branch #2: At-bat results ———
     if request.method == "POST" and 'result' in request.POST:
+        code = request.POST['result']
         # 1) Figure out who’s up and which team is batting
         if sess.is_top:
             idx, pitcher = sess.away_batter_idx, sess.home_pitcher
@@ -316,7 +318,7 @@ def live_game(request, session_id):
         needs_override = runs_driven > 0 and code not in auto_rbi_codes
 
         # 11) Render updated partial
-        context = _build_live_context(sess, get_lineup, defense_spots)
+        context = _build_live_context(sess, get_lineup)
         context.update({
             'needs_rbi_override': needs_override,
             'runs_driven': runs_driven,
@@ -337,7 +339,7 @@ def live_game(request, session_id):
             psl.save()
 
         # re-render the partial with updated stats
-        context = _build_live_context(sess, get_lineup, defense_spots)
+        context = _build_live_context(sess, get_lineup)
         return render(request, 'games/live_game_partial.html', context)
 
     # ——— 4) GET (or any other method) → full page load ———
