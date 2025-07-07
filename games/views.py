@@ -1,15 +1,17 @@
 from django.shortcuts import render, redirect, get_object_or_404
+from django.db.models import Sum
 from django.db import transaction
 from types import SimpleNamespace
 from .models import (
-    GameSession, PlayEvent, SessionInningScore,
-    PlayerSessionStatLine,
+    GameSession, AtBatResult, SessionInningScore,
+    StatDelta,
     )
 from stats.models import LineupEntry
 from players.models import PlayerPositionRating, Players
 from teams.models import Lineup, TeamLineupEntry
 from .forms import GameSetupForm
 from stats.forms import LineupEntryForm
+from .services import replay_all_events
 
 def setup_game(request):
     if request.method == 'POST':
@@ -22,7 +24,22 @@ def setup_game(request):
         form = GameSetupForm()
     return render(request, 'games/setup_game.html', {'form': form})
 
+@transaction.atomic
+def undo_last_event(request, session_id):
+    sess = get_object_or_404(GameSession, id=session_id)
+    last = sess.events.order_by('-timestamp').first()
+    if last:
+        last.delete()
+        replay_all_events(session_id)
+    return redirect('games:live_game', session_id=session_id)
+
 def live_game(request, session_id):
+    ###
+    if request.method == "POST":
+        import sys, pprint
+        pprint.pprint(dict(request.POST), stream=sys.stderr)
+    ###
+
     sess = get_object_or_404(GameSession, id=session_id)
 
     def get_lineup(session, is_top):
@@ -34,12 +51,65 @@ def live_game(request, session_id):
                 .order_by('batting_order')
         ]
 
-    # ——— POST branch #1: Baserunner moves ———
+    # ——— POST branch #1: Defense OR Baserunner moves ———
     if request.method == "POST" \
-        and any(k.startswith('base_') for k in request.POST) \
-        and 'result' not in request.POST \
-        and 'award_rbi' not in request.POST:
-        # Process each base_<n> action
+    and any(k.startswith('base_') or k.startswith('defense_') for k in request.POST) \
+    and 'result' not in request.POST \
+    and 'award_rbi' not in request.POST:
+
+        # ---- 1) Handle defensive radios ----
+        # template fields should be named like defense_<entry_id> = 'A'/'PO'/'E'
+        for name, value in request.POST.items():
+            # fetch (or create) the current inning score once
+            sis, _ = SessionInningScore.objects.get_or_create(
+                session = sess,
+                team    = (sess.game.away_team if sess.is_top else sess.game.home_team),
+                inning  = sess.inning,
+                is_top  = sess.is_top,
+            )
+
+            # walk the defense_ fields again to apply actual effects
+            for name, value in request.POST.items():
+                if not name.startswith('defense_'):
+                    continue
+                # name == 'defense_<entry_id>', value in {'A','PO','E'}
+                if value == 'PO' or value == 'OUT':
+                    sess.outs += 1
+                elif value == 'E':
+                    sis.errors += 1
+
+            # save the inning score if it changed
+            sis.save()
+
+            # —— now advance the batter (and handle half-inning) if any out occurred ——  
+            if sess.outs >= 3:
+                # reset for next half-inning
+                sess.runner_on_first = sess.runner_on_second = sess.runner_on_third = None
+                sess.outs = 0
+                if sess.is_top:
+                    sess.is_top = False
+                else:
+                    sess.is_top = True
+                    sess.inning += 1
+            else:
+                # just bump the proper batter index
+                lineup = get_lineup(sess, sess.is_top)
+                next_idx = ((sess.away_batter_idx if sess.is_top else sess.home_batter_idx) + 1) % len(lineup)
+                if sess.is_top:
+                    sess.away_batter_idx = next_idx
+                else:
+                    sess.home_batter_idx = next_idx
+
+
+            if not name.startswith('defense_'):
+                continue
+            entry_id = name.split('_', 1)[1]
+            # You can log or stash for later. Example placeholder:
+            # entry = LineupEntry.objects.get(pk=entry_id)
+            # record a defensive stat delta later
+            # print(f"Defensive stat for entry {entry_id}: {value}")
+
+        # ---- 2) Handle base-runner buttons ----
         for i in (1, 2, 3):
             action = request.POST.get(f'base_{i}')
             if not action:
@@ -57,12 +127,22 @@ def live_game(request, session_id):
                         f"runner_on_{['first','second','third'][tgt-1]}",
                         runner
                     )
+
             elif action == 'SCORE' and runner:
-                setattr(sess, f'runner_on_{runner_attr}', None)
+                setattr(sess, runner_attr, None)
+                sis = SessionInningScore.objects.get(
+                    session=sess,
+                    team=(sess.game.away_team if sess.is_top else sess.game.home_team),
+                    inning=sess.inning,
+                    is_top=sess.is_top
+                )
                 sis.runs += 1
+                sis.save()
+
             elif action == 'OUT' and runner:
                 setattr(sess, runner_attr, None)
                 sess.outs += 1
+
             elif action == 'SB' and runner:
                 tgt = i + 1
                 if tgt <= 3:
@@ -71,11 +151,13 @@ def live_game(request, session_id):
                         f"runner_on_{['first','second','third'][tgt-1]}",
                         runner
                     )
-                    # TODO: record PlayEvent(result='SB')
+                    # TODO: record an AtBatResult(result='SB') + StatDelta
+
             elif action == 'CS' and runner:
                 setattr(sess, runner_attr, None)
                 sess.outs += 1
-                # TODO: record PlayEvent(result='CS')
+                # TODO: record an AtBatResult(result='CS') + StatDelta
+
             elif action == 'REMOVE' and runner:
                 setattr(sess, runner_attr, None)
 
@@ -85,6 +167,7 @@ def live_game(request, session_id):
 
     # ——— POST branch #2: At-bat results ———
     if request.method == "POST" and 'result' in request.POST:
+        print(f"[DEBUG] Entering at-bat branch with result={request.POST.get('result')}")
         code = request.POST['result']
         # 1) Figure out who’s up and which team is batting
         if sess.is_top:
@@ -98,88 +181,93 @@ def live_game(request, session_id):
         batter = lineup[idx]
         code   = request.POST['result']
 
-        # 2) Snapshot original baserunners
+        # ————— 2) Snapshot original baserunners and honor REMOVE —————
         orig = {
             'first':  sess.runner_on_first,
             'second': sess.runner_on_second,
             'third':  sess.runner_on_third,
         }
 
-        # 3) Load or create the box‐score row for this half‐inning
-        sis, _ = SessionInningScore.objects.get_or_create(
+        # ————— 3) Load/create box score AND capture pre_runs —————
+        sis, _    = SessionInningScore.objects.get_or_create(
             session = sess,
             team    = batting_team,
             inning  = sess.inning,
             is_top  = sess.is_top,
         )
-        pre_runs = sis.runs
+        pre_runs = sis.runs  # ← re-introduced!
 
-        # 4) Record hits, errors, sac flies, and HR runs
+        # ————— 4) Process REMOVE & SCORE radios immediately —————
+        for i, base in enumerate(('first','second','third'), start=1):
+            action = request.POST.get(f'base_{i}')
+            if action == 'REMOVE' and orig[base]:
+                setattr(sess, f'runner_on_{base}', None)
+                orig[base] = None
+            elif action == 'SCORE' and orig[base]:
+                sis.runs += 1
+                setattr(sess, f'runner_on_{base}', None)
+                orig[base] = None
+
+        sis.save()
+        sess.save()
+
+        # ————— 5) Record hits/errors/SF/SH/HR —————
         if code in ('1B','2B','3B'):
             sis.hits += 1
-
         elif code == 'E':
             sis.errors += 1
-
-        elif code == 'SF':
-            # sacrifice fly: score runner on third if present, +RBI
-            if orig['third']:
-                sis.runs += 1
-
+        elif code == 'SF' and orig['third']:
+            sis.runs += 1
         elif code == 'SH':
-            # sacrifice bunt: no automatic run, scorer may advance via radio
             pass
-
         elif code == 'HR':
-            # home run: hit + everyone on + batter
             sis.hits += 1
-            runs_scored = sum(1 for r in orig.values() if r) + 1
-            sis.runs += runs_scored
+            sis.runs += 1 + sum(1 for r in orig.values() if r)
 
         sis.save()
 
+        # ————— 6) Forced-advance for 1B, BB, HBP, E AND FC —————
+        if code in ('1B','BB','HBP','E','FC'):
+            f, s, t = orig['first'], orig['second'], orig['third']
 
-        # 5) Forced‐advance & live‐ball specials BEFORE placing the batter
+            # bases loaded → 3 scores, 2→3, 1→2
+            if f and s and t:
+                sis.runs += 1
+                sess.runner_on_third  = s
+                sess.runner_on_second = f
 
-        # SINGLE‐type forces (1B, BB, HBP, E but NOT FC)
-        if code in ('1B','BB','HBP','E'):
-            if orig['first']:
-                if orig['second'] and orig['third']:
-                    # bases loaded → 3rd scores, 2→3, 1→2
-                    sis.runs += 1
-                    sess.runner_on_third  = orig['second']
-                    sess.runner_on_second = orig['first']
-                else:
-                    # only 1st → 2nd
-                    sess.runner_on_second = orig['first']
+            # runners on 1st+2nd → 2→3, 1→2
+            elif f and s:
+                sess.runner_on_third  = s
+                sess.runner_on_second = f
 
-        # DOUBLE forces 1st → 3rd
-        elif code == '2B':
-            if orig['first']:
-                sess.runner_on_third = orig['first']
+            # runner on 1st only → 1→2
+            elif f:
+                sess.runner_on_second = f
 
-        # TRIPLE scores everyone
+        elif code == '2B' and orig['first']:
+            sess.runner_on_third = orig['first']
+
         elif code == '3B':
-            for r in orig.values():
-                if r:
+            for runner in orig.values():
+                if runner:
                     sis.runs += 1
 
-        # Passed Ball / Wild Pitch / Balk & KPB/KWP: all runners advance one
         elif code in ('PB','WP','BK','KPB','KWP'):
-            for b_name, runner in orig.items():
+            for base in ('first','second','third'):
+                runner = orig[base]
                 if not runner:
                     continue
-                # clear old spot
-                setattr(sess, f'runner_on_{b_name}', None)
-                # advance or score
-                if b_name == 'third':
+                setattr(sess, f'runner_on_{base}', None)
+                if base == 'third':
                     sis.runs += 1
                 else:
-                    dest = ['first','second','third'][['first','second','third'].index(b_name)+1]
+                    dest = 'second' if base=='first' else 'third'
                     setattr(sess, f'runner_on_{dest}', runner)
 
         sis.save()
-
+        sess.save()
+        print(f"[DEBUG] After forced-advance: first={sess.runner_on_first}, second={sess.runner_on_second}, third={sess.runner_on_third}")
 
         # 6) Place the batter on base (and record FC / KPB / KWP outs)
         if code == 'SH':
@@ -208,8 +296,8 @@ def live_game(request, session_id):
         elif code == 'HR':
             sess.runner_on_first = sess.runner_on_second = sess.runner_on_third = None
 
-        # 7) Record the PlayEvent
-        PlayEvent.objects.create(
+        # 7) Record the AtBatResult
+        event = AtBatResult.objects.create(
             session = sess,
             batter  = batter,
             pitcher = pitcher,
@@ -218,39 +306,39 @@ def live_game(request, session_id):
             is_top  = sess.is_top,
         )
 
-        psl, _ = PlayerSessionStatLine.objects.get_or_create(
-            session=sess, player=batter
-        )
+        # 8) Build the StatDelta list
+        deltas = []
 
-        #  ABs: any official PA except BB, HBP
+        # ABs (official PA)
         if code not in ('BB','HBP','IBB','SF','SH'):
-            psl.ab += 1
+            deltas.append(StatDelta(event=event, player=batter, stat_field='ab', delta=1))
 
         # Hits
         if code in ('1B','2B','3B','HR'):
-            psl.h += 1
-
-        if code == '2B': psl.doubles += 1
-        if code == '3B': psl.triples += 1
-        if code == 'HR':psl.hr += 1
+            deltas.append(StatDelta(event=event, player=batter, stat_field='h', delta=1))
+        if code == '2B':
+            deltas.append(StatDelta(event=event, player=batter, stat_field='doubles', delta=1))
+        if code == '3B':
+            deltas.append(StatDelta(event=event, player=batter, stat_field='triples', delta=1))
+        if code == 'HR':
+            deltas.append(StatDelta(event=event, player=batter, stat_field='hr', delta=1))
 
         # Walks & HBP
         if code == 'BB':
-            psl.bb += 1
+            deltas.append(StatDelta(event=event, player=batter, stat_field='bb', delta=1))
         elif code == 'HBP':
-            psl.hbp += 1
+            deltas.append(StatDelta(event=event, player=batter, stat_field='hbp', delta=1))
 
-        # Strikeouts
+        # Strikeouts & DP
         if code == 'K':
-            psl.so += 1
-
-        # DP charged?
+            deltas.append(StatDelta(event=event, player=batter, stat_field='so', delta=1))
         if code == 'DP':
-            psl.dp += 1
+            deltas.append(StatDelta(event=event, player=batter, stat_field='dp', delta=1))
 
-        psl.save()
+        # 9) Bulk save them
+        StatDelta.objects.bulk_create(deltas)
 
-        # 8) Increment outs for K, OUT, DP, TP
+        # 10) Increment outs and advance batter as before
         if code in ('K','OUT'):
             sess.outs += 1
         elif code == 'DP':
@@ -316,6 +404,7 @@ def live_game(request, session_id):
         runs_driven = sis.runs - pre_runs
         auto_rbi_codes = {'1B','2B','3B','HR','SF'}
         needs_override = runs_driven > 0 and code not in auto_rbi_codes
+        print(f"[DEBUG] runs_driven={runs_driven}, needs_override={needs_override}")
 
         # 11) Render updated partial
         context = _build_live_context(sess, get_lineup)
@@ -331,12 +420,12 @@ def live_game(request, session_id):
         # find last plate appearance
         last_event = sess.events.order_by('-timestamp').first()
         if last_event:
-            psl, _ = PlayerSessionStatLine.objects.get_or_create(
-                session=sess,
-                player=last_event.batter
+            StatDelta.objects.create(
+                event     = last_event,
+                player    = last_event.batter,
+                stat_field= 'rbi',
+                delta     = award
             )
-            psl.rbi += award
-            psl.save()
 
         # re-render the partial with updated stats
         context = _build_live_context(sess, get_lineup)
@@ -442,11 +531,21 @@ def _build_live_context(sess, get_lineup):
         ))
 
     # 5) Choice lists
-    play_choices    = PlayEvent._meta.get_field('result').choices
+    play_choices    = AtBatResult._meta.get_field('result').choices
     defense_choices = [('A','Assist'),('PO','Put Out'),('E','Error')]
 
     # 6) Player stats so far
-    player_stats = PlayerSessionStatLine.objects.filter(session=sess)
+    qs = StatDelta.objects.filter(event__session=sess)
+
+    stats = {}
+    for sd in qs.values('player_id', 'stat_field').annotate(total=Sum('delta')):
+        pid = sd['player_id']
+        stats.setdefault(pid, {})[sd['stat_field']] = sd['total']
+
+    player_stats = []
+    for pid, sdict in stats.items():
+        player = Players.objects.get(pk=pid)
+        player_stats.append(SimpleNamespace(player=player, **sdict))
 
     return {
         'session':         sess,

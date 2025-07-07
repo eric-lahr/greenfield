@@ -28,4 +28,9 @@ urlpatterns = [
         views.session_list,
         name='session_list'
     ),
+    path(
+        'live/<int:session_id>/undo/',
+        views.undo_last_event,
+        name='live_undo'
+    ),
 ]

@@ -198,7 +198,9 @@
     {# Substitute & Restart #}
     <a href="{% url 'games:substitute' session.id %}"
        class="btn btn-secondary mt-2 w-100">Substitute</a>
+    <a href="{% url 'games:live_undo' session.id %}"
+       class="btn btn-outline-danger mt-1 w-100">Undo Last Play</a>
     <a href="{% url 'games:setup_game' %}"
-       class="btn btn-outline-danger mt-1 w-100">Start New Game</a>
+       class="btn btn-danger mt-1 w-100">Start New Game</a>
   </div>
 </div>
