@@ -1,0 +1,29 @@
+{# games/templates/games/partials/stats_table.html #}
+{% load game_extras %}
+
+<table class="table table-striped">
+  <thead>
+    <tr>
+      <th>Player</th>
+      {% for f in fields %}
+        <th>{{ stat_labels|get_item:f }}</th>
+      {% endfor %}
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in stats %}
+      <tr>
+        <td>{{ row.player }}</td>
+        {% for f in fields %}
+          <td>{{ row|get_item:f }}</td>
+        {% endfor %}
+      </tr>
+    {% empty %}
+      <tr>
+        <td colspan="{{ fields|length|add:1 }}">
+          No stats recorded yet.
+        </td>
+      </tr>
+    {% endfor %}
+  </tbody>
+</table>

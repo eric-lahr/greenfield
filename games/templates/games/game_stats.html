@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <h2>Game {{ session.id }} Stats</h2>
+
+  {# AWAY #}
+  <h3>{{ session.game.away_team.name }} (Away)</h3>
+  <table class="table table-striped">
+    <thead>
+      <tr>
+        <th>Player</th>
+        {% for label in labels %}
+          <th>{{ label }}</th>
+        {% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in away_stats %}
+        <tr>
+          <td>{{ row.player }}</td>
+          {% for val in row.values %}
+            <td>{{ val }}</td>
+          {% endfor %}
+        </tr>
+      {% empty %}
+        <tr>
+          <td colspan="{{ labels|length|add:1 }}">
+            No stats recorded yet.
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {# HOME #}
+  <h3>{{ session.game.home_team.name }} (Home)</h3>
+  <table class="table table-striped">
+    <thead>
+      <tr>
+        <th>Player</th>
+        {% for label in labels %}
+          <th>{{ label }}</th>
+        {% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in home_stats %}
+        <tr>
+          <td>{{ row.player }}</td>
+          {% for val in row.values %}
+            <td>{{ val }}</td>
+          {% endfor %}
+        </tr>
+      {% empty %}
+        <tr>
+          <td colspan="{{ labels|length|add:1 }}">
+            No stats recorded yet.
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <a href="{% url 'games:live_game' session.id %}"
+     class="btn btn-secondary mt-3">
+    ← Back to Live Game
+  </a>
+{% endblock %}

@@ -136,6 +136,10 @@
         {{ session.is_top|yesno:"Top,Bottom" }} of {{ session.inning }}
         &mdash; {{ session.outs }} {{ session.outs|pluralize:"out,outs" }}
       </strong>
+      <a href="{% url 'games:game_stats' session.id %}"
+         class="btn btn-info mt-1 w-100">
+         View Game Stats
+      </a>
     </div>
 
     {# Away/Home cards #}

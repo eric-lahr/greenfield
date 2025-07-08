@@ -197,6 +197,8 @@ class PlayerStatLine(models.Model):
     a = models.PositiveSmallIntegerField(default=0)
     e = models.PositiveSmallIntegerField(default=0)
     pb = models.PositiveSmallIntegerField(default=0)
+    sb_allowed = models.PositiveSmallIntegerField(default=0)
+    runners_caught = models.PositiveSmallIntegerField(default=0)
     position = models.CharField(max_length=3)  # e.g., SS, C, RF
 
     def __str__(self):

@@ -33,4 +33,9 @@ urlpatterns = [
         views.undo_last_event,
         name='live_undo'
     ),
+    path(
+        'live/<int:session_id>/stats/',
+        views.game_stats,
+        name='game_stats'
+    ),
 ]

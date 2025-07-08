@@ -15,7 +15,7 @@ from django.db.models.functions import Concat
 from urllib.parse import urlencode
 from .models import (
     Competition, Game, LineupEntry, PlayerStatLine, InningScore,
-    Substitution, League, Division, TeamEntry, TeamStanding
+    Substitution, League, Division, TeamEntry, TeamStanding,
     )
 from players.models import Players
 from teams.models import Teams
