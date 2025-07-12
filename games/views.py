@@ -44,6 +44,12 @@ def undo_last_event(request, session_id):
 def live_game(request, session_id):
     sess = get_object_or_404(GameSession, id=session_id)
 
+    import logging
+    logger = logging.getLogger(__name__)
+    # DEBUG: dump out what came in
+    logger.debug("→ live_game POST keys: %s", list(request.POST.keys()))
+
+
     # ——— POST branch #1: Defense OR Baserunner moves ———
     if (
         request.method == "POST"
@@ -51,6 +57,8 @@ def live_game(request, session_id):
         and "result" not in request.POST
         and "award_rbi" not in request.POST
     ):
+        print("[DEBUG] Entered BASES branch:", request.POST)
+        logger.debug("→ hitting BASES branch")
         # 1) Pull out defense actions, e.g. {3:"PO", 5:"E"}
         defense_actions = {
             int(name.split("_", 1)[1]): value
@@ -64,15 +72,30 @@ def live_game(request, session_id):
             for name, value in request.POST.items()
             if name.startswith("base_")
         }
-
+        
         # 3) Apply defense first (this may increment outs & record PO/A/E deltas)
         DefenseService(sess, get_lineup).apply(defense_actions)
 
-        # 4) Apply baserunning—this now returns True if an out occurred
+        # DEBUG: show idx before runner action
+        print("[DEBUG] Before runner branch - away_idx=", sess.away_batter_idx,
+              "home_idx=", sess.home_batter_idx)
+
+        # 4) Apply baserunning (returns True if any out)
         out_occurred = BaserunningService(sess, get_lineup).apply(base_actions)
+        print("[DEBUG] out_occurred = ", out_occurred)
+
+        # DEBUG: did the service think an out happened?
+        print("[DEBUG] out_occurred = ", out_occurred)
+
+        # DEBUG: show idx after runner logic
+        print("[DEBUG] After runner branch - away_idx=", sess.away_batter_idx,
+              "home_idx=", sess.home_batter_idx)
 
         # 5) Only roll the half-inning if there was at least one out
         if out_occurred:
+            print("[DEBUG] Rolled half-inning; new idx:",
+                  "away_idx=", sess.away_batter_idx,
+                  "home_idx=", sess.home_batter_idx)
             _handle_half_inning_rollover(sess, get_lineup)
 
         sess.save()
@@ -85,7 +108,11 @@ def live_game(request, session_id):
         )
 
     # 2) Branch #2: at-bat result POST
-    if request.method == "POST" and "result" in request.POST:
+    elif request.method == "POST" and "result" in request.POST:
+        print("[DEBUG] Entered AT-BAT branch, result =", request.POST["result"])
+        # DEBUG: dump out what came in
+        logger.debug("→ live_game POST keys: %s", list(request.POST.keys()))
+
         # collect the three base_<n> radios into a dict
         base_actions = {
             i: request.POST.get(f"base_{i}")
@@ -101,7 +128,8 @@ def live_game(request, session_id):
         )
 
     # 3) Branch #3: manual RBI override
-    if request.method == "POST" and "award_rbi" in request.POST:
+    elif request.method == "POST" and "award_rbi" in request.POST:
+        print("[DEBUG] Entered RBI-OVERRIDE branch:", request.POST)
         award = int(request.POST["award_rbi"])
         last_event = sess.events.order_by("-timestamp").first()
         if last_event:
